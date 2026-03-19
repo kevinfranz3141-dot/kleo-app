@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KLEO – Ihr KI-Assistent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --forest: #1B3A2D;
+  --sage: #2D5A3D;
+  --leaf: #4A8C5C;
+  --mint: #A8D5B5;
+  --mist: #E8F4EC;
+  --amber: #C8A96E;
+  --danger: #E85D4A;
+  --serif: 'DM Serif Display', Georgia, serif;
+  --sans: 'DM Sans', system-ui, sans-serif;
+  --sidebar-w: 280px;
+  --docs-w: 300px;
+
+  /* Dark theme (default) */
+  --bg-app: #0D1B2A;
+  --bg-sidebar: #0D1B2A;
+  --bg-main: #152238;
+  --bg-card: rgba(255,255,255,0.04);
+  --bg-card-hover: rgba(255,255,255,0.07);
+  --bg-input: rgba(255,255,255,0.06);
+  --bg-bubble-user: #2D5A3D;
+  --bg-bubble-kleo: rgba(255,255,255,0.05);
+  --bg-header: rgba(255,255,255,0.02);
+  --bg-upload: transparent;
+  --text-primary: #FFFFFF;
+  --text-secondary: rgba(255,255,255,0.6);
+  --text-tertiary: rgba(255,255,255,0.3);
+  --text-hint: rgba(255,255,255,0.15);
+  --text-bubble-kleo: rgba(255,255,255,0.88);
+  --border-primary: rgba(255,255,255,0.08);
+  --border-secondary: rgba(255,255,255,0.06);
+  --border-input: rgba(255,255,255,0.1);
+  --border-input-focus: rgba(74,140,92,0.4);
+  --source-bg: rgba(74,140,92,0.1);
+  --source-border: rgba(74,140,92,0.15);
+  --scrollbar: rgba(255,255,255,0.08);
+  --doc-icon-bg: rgba(232,93,74,0.1);
+  --doc-icon-color: #E85D4A;
+}
+
+[data-theme="light"] {
+  --bg-app: #F7F3EE;
+  --bg-sidebar: #FFFFFF;
+  --bg-main: #FDFAF6;
+  --bg-card: rgba(0,0,0,0.03);
+  --bg-card-hover: rgba(0,0,0,0.06);
+  --bg-input: rgba(0,0,0,0.04);
+  --bg-bubble-user: #2D5A3D;
+  --bg-bubble-kleo: #FFFFFF;
+  --bg-header: rgba(0,0,0,0.02);
+  --bg-upload: transparent;
+  --text-primary: #0D1B2A;
+  --text-secondary: rgba(13,27,42,0.6);
+  --text-tertiary: rgba(13,27,42,0.35);
+  --text-hint: rgba(13,27,42,0.15);
+  --text-bubble-kleo: #0D1B2A;
+  --border-primary: rgba(0,0,0,0.1);
+  --border-secondary: rgba(0,0,0,0.06);
+  --border-input: rgba(0,0,0,0.12);
+  --border-input-focus: rgba(74,140,92,0.5);
+  --source-bg: rgba(74,140,92,0.08);
+  --source-border: rgba(74,140,92,0.15);
+  --scrollbar: rgba(0,0,0,0.1);
+  --doc-icon-bg: rgba(232,93,74,0.08);
+  --doc-icon-color: #C04030;
+}
+
+[data-theme="light"] .msg-row.user .msg-bubble { color: #FFFFFF; }
+[data-theme="light"] .sidebar-logo,
+[data-theme="light"] .nav-logo { color: var(--text-primary); }
+[data-theme="light"] .sidebar-badge { background: rgba(74,140,92,0.1); }
+[data-theme="light"] .new-chat-btn { color: #FFFFFF; }
+[data-theme="light"] .main-header-avatar { color: #FFFFFF; }
+[data-theme="light"] .msg-avatar.kleo-av { color: #FFFFFF; }
+[data-theme="light"] .msg-avatar.user-av { background: rgba(0,0,0,0.06); color: var(--text-secondary); }
+[data-theme="light"] .welcome-logo { color: #FFFFFF; }
+[data-theme="light"] .sidebar-user-avatar { color: #FFFFFF; }
+[data-theme="light"] .msg-row.kleo .msg-bubble strong { color: var(--sage); }
+[data-theme="light"] .msg-row.kleo .msg-bubble em { color: var(--clay); }
+[data-theme="light"] .source-tag { color: var(--sage); }
+[data-theme="light"] .input-send-btn { color: #FFFFFF; }
+[data-theme="light"] .input-field { color: var(--text-primary); }
+[data-theme="light"] .input-field::placeholder { color: var(--text-tertiary); }
+.cp-input-field::placeholder { color: var(--text-tertiary); }
+[data-theme="light"] .chat-item.active { background: rgba(74,140,92,0.08); }
+[data-theme="light"] .chat-item.active .chat-item-title { color: var(--sage); }
+[data-theme="light"] .typing-dots span { background: var(--sage); }
+[data-theme="light"] .suggestion-btn { background: #FFFFFF; border-color: var(--border-primary); }
+[data-theme="light"] .suggestion-btn:hover { background: var(--mist); }
+[data-theme="light"] .doc-chunks { background: rgba(74,140,92,0.08); color: var(--sage); }
+
+* { transition: background-color 0.25s, color 0.25s, border-color 0.25s; }
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--sans);
+  font-weight: 400;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  height: 100vh;
+  overflow: hidden;
+  transition: background 0.3s, color 0.3s;
+}
+
+/* ========== LAYOUT ========== */
+.app {
+  display: flex;
+  height: 100vh;
+}
+
+/* ========== SIDEBAR ========== */
+.sidebar {
+  width: var(--sidebar-w);
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border-secondary);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  transition: transform 0.3s;
+}
+
+.sidebar-header {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--border-secondary);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.sidebar-logo {
+  font-family: var(--serif);
+  font-size: 26px;
+  color: var(--text-primary);
+  letter-spacing: -1px;
+}
+
+.sidebar-logo i { font-style: italic; color: var(--mint); }
+
+.sidebar-badge {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--mint);
+  background: rgba(168,213,181,0.1);
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.new-chat-btn {
+  margin: 16px 16px 8px;
+  padding: 12px 16px;
+  background: var(--sage);
+  border: none;
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.new-chat-btn:hover { background: var(--leaf); }
+
+.new-chat-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+.sidebar-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  padding: 20px 20px 8px;
+  flex-shrink: 0;
+}
+
+.chat-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 8px;
+}
+
+.chat-list::-webkit-scrollbar { width: 3px; }
+.chat-list::-webkit-scrollbar-thumb { background: var(--bg-card-hover); border-radius: 3px; }
+
+.chat-item {
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chat-item:hover { background: var(--bg-card); }
+.chat-item.active { background: var(--bg-card-hover); }
+
+.chat-item-icon {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  background: var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.chat-item-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-item-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-item.active .chat-item-title { color: var(--text-primary); }
+
+.chat-item-time {
+  font-size: 11px;
+  color: var(--text-hint);
+  margin-top: 2px;
+}
+
+.chat-item-delete {
+  opacity: 0;
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: opacity 0.2s, color 0.2s;
+  flex-shrink: 0;
+}
+
+.chat-item:hover .chat-item-delete { opacity: 1; }
+.chat-item-delete:hover { color: var(--danger); }
+
+/* Sidebar bottom */
+.sidebar-bottom {
+  border-top: 1px solid var(--border-secondary);
+  padding: 12px 16px;
+  flex-shrink: 0;
+}
+
+.sidebar-docs-btn {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-secondary);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-family: var(--sans);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.sidebar-docs-btn:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+
+.sidebar-docs-btn .doc-count {
+  margin-left: auto;
+  background: rgba(168,213,181,0.15);
+  color: var(--mint);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.sidebar-user {
+  margin-top: 8px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 8px;
+  cursor: default;
+}
+
+.sidebar-user-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--sage), var(--leaf));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.sidebar-user-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.7);
+}
+
+.sidebar-user-plan {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* ========== MAIN CHAT ========== */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-main);
+  min-width: 0;
+}
+
+.main-header {
+  padding: 16px 28px;
+  border-bottom: 1px solid var(--border-secondary);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+  background: var(--bg-header);
+}
+
+.main-header-avatar {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--sage), var(--leaf));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--serif);
+  font-size: 16px;
+  color: var(--text-primary);
+  font-style: italic;
+  flex-shrink: 0;
+}
+
+.main-header-info { flex: 1; }
+
+.main-header-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.main-header-status {
+  font-size: 12px;
+  color: var(--mint);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--leaf);
+  box-shadow: 0 0 6px var(--leaf);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.main-header-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.header-action-btn {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-secondary);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+
+.header-action-btn:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+.header-action-btn svg { width: 16px; height: 16px; }
+
+/* Messages area */
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.messages::-webkit-scrollbar { width: 5px; }
+.messages::-webkit-scrollbar-thumb { background: var(--bg-card-hover); border-radius: 5px; }
+
+.msg-row {
+  padding: 8px 28px;
+  display: flex;
+  gap: 14px;
+  animation: msgFade 0.3s ease-out;
+}
+
+@keyframes msgFade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.msg-row.user { flex-direction: row-reverse; }
+
+.msg-avatar {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.msg-avatar.kleo-av {
+  background: linear-gradient(135deg, var(--sage), var(--leaf));
+  font-family: var(--serif);
+  font-style: italic;
+  color: var(--text-primary);
+}
+
+.msg-avatar.user-av {
+  background: var(--bg-card-hover);
+  color: var(--text-secondary);
+}
+
+.msg-content {
+  max-width: 680px;
+  min-width: 0;
+}
+
+.msg-bubble {
+  font-size: 14.5px;
+  line-height: 1.7;
+  padding: 14px 20px;
+  border-radius: 4px 16px 16px 16px;
+}
+
+.msg-row.user .msg-bubble {
+  background: var(--sage);
+  color: var(--text-primary);
+  border-radius: 16px 4px 16px 16px;
+}
+
+.msg-row.kleo .msg-bubble {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border-secondary);
+  color: rgba(255,255,255,0.88);
+}
+
+.msg-row.kleo .msg-bubble strong { color: var(--mint); font-weight: 500; }
+.msg-row.kleo .msg-bubble em { color: var(--amber); font-style: italic; }
+
+/* Source citation */
+.msg-sources {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.source-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--source-bg);
+  border: 1px solid var(--source-border);
+  color: var(--mint);
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: default;
+  transition: background 0.2s;
+}
+
+.source-tag:hover { background: rgba(74,140,92,0.18); }
+
+.source-tag svg { width: 12px; height: 12px; flex-shrink: 0; opacity: 0.6; }
+
+/* Feedback buttons */
+.msg-feedback {
+  margin-top: 8px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.msg-row.kleo:hover .msg-feedback { opacity: 1; }
+
+.feedback-btn {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  background: none;
+  border: 1px solid var(--border-secondary);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.feedback-btn:hover { color: var(--text-primary); border-color: var(--text-hint); background: var(--bg-card); }
+.feedback-btn.active-up { color: var(--leaf); border-color: var(--leaf); background: rgba(74,140,92,0.1); }
+.feedback-btn.active-down { color: var(--danger); border-color: var(--danger); background: var(--doc-icon-bg); }
+
+/* Typing indicator */
+.typing-row {
+  padding: 8px 28px;
+  display: flex;
+  gap: 14px;
+}
+
+.typing-dots {
+  display: flex;
+  gap: 5px;
+  padding: 14px 20px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border-secondary);
+  border-radius: 4px 16px 16px 16px;
+}
+
+.typing-dots span {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--mint);
+  opacity: 0.3;
+  animation: typeDot 1.4s ease-in-out infinite;
+}
+
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typeDot {
+  0%, 100% { opacity: 0.25; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-4px); }
+}
+
+/* Welcome state */
+.welcome-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+}
+
+.welcome-logo {
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--sage), var(--leaf));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--serif);
+  font-size: 34px;
+  color: var(--text-primary);
+  font-style: italic;
+  margin-bottom: 24px;
+  box-shadow: 0 12px 40px rgba(45,90,61,0.3);
+}
+
+.welcome-title {
+  font-family: var(--serif);
+  font-size: 28px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.welcome-title i { font-style: italic; color: var(--mint); }
+
+.welcome-sub {
+  font-size: 15px;
+  color: var(--text-tertiary);
+  max-width: 400px;
+  line-height: 1.6;
+  margin-bottom: 40px;
+}
+
+.welcome-suggestions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  max-width: 560px;
+  width: 100%;
+}
+
+.suggestion-btn {
+  background: var(--bg-card);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  padding: 16px 18px;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.suggestion-btn:hover { background: var(--bg-input); border-color: rgba(255,255,255,0.12); }
+
+.suggestion-icon {
+  font-size: 18px;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.suggestion-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* Input area */
+.input-area {
+  padding: 16px 28px 24px;
+  flex-shrink: 0;
+}
+
+.input-container {
+  max-width: 760px;
+  margin: 0 auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: 16px;
+  padding: 6px;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  transition: border-color 0.3s;
+}
+
+.input-container:focus-within { border-color: rgba(74,140,92,0.4); }
+
+.input-field {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: var(--sans);
+  font-size: 15px;
+  padding: 10px 14px;
+  resize: none;
+  max-height: 150px;
+  line-height: 1.5;
+}
+
+.input-field::placeholder { color: var(--text-tertiary); }
+.cp-input-field::placeholder { color: var(--text-tertiary); }
+
+.input-actions {
+  display: flex;
+  gap: 4px;
+  padding-bottom: 4px;
+}
+
+.input-action-btn {
+  width: 38px; height: 38px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.input-action-btn svg { width: 18px; height: 18px; }
+
+.input-attach-btn {
+  background: none;
+  color: var(--text-tertiary);
+}
+
+.input-attach-btn:hover { background: var(--bg-input); color: var(--text-secondary); }
+
+.input-send-btn {
+  background: var(--sage);
+  color: var(--text-primary);
+}
+
+.input-send-btn:hover { background: var(--leaf); }
+.input-send-btn:disabled { opacity: 0.35; cursor: not-allowed; background: var(--sage); }
+
+.input-hint {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-hint);
+  margin-top: 8px;
+}
+
+/* ========== DOCUMENTS PANEL ========== */
+.docs-panel {
+  width: var(--docs-w);
+  background: var(--ink);
+  border-left: 1px solid var(--border-secondary);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  transition: transform 0.3s, width 0.3s, opacity 0.3s;
+}
+
+.docs-panel.hidden { width: 0; overflow: hidden; opacity: 0; border: none; }
+
+.docs-header {
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.docs-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.docs-close-btn {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.docs-close-btn:hover { color: var(--text-primary); }
+
+.docs-upload-area {
+  margin: 16px;
+  padding: 24px;
+  border: 1.5px dashed var(--border-input);
+  border-radius: 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  flex-shrink: 0;
+}
+
+.docs-upload-area:hover { border-color: var(--leaf); background: rgba(74,140,92,0.05); }
+
+.docs-upload-area svg { width: 28px; height: 28px; color: var(--text-hint); margin-bottom: 8px; }
+
+.docs-upload-text {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.docs-upload-text strong { color: var(--mint); font-weight: 500; }
+
+.docs-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 12px 12px;
+}
+
+.docs-list::-webkit-scrollbar { width: 3px; }
+.docs-list::-webkit-scrollbar-thumb { background: var(--bg-input); border-radius: 3px; }
+
+.doc-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  transition: background 0.2s;
+  cursor: default;
+}
+
+.doc-item:hover { background: var(--bg-card); }
+
+.doc-icon {
+  width: 34px; height: 34px;
+  border-radius: 8px;
+  background: var(--doc-icon-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--doc-icon-color);
+  flex-shrink: 0;
+}
+
+.doc-info { flex: 1; min-width: 0; }
+
+.doc-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.75);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-meta {
+  font-size: 11px;
+  color: var(--text-hint);
+}
+
+.doc-chunks {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--mint);
+  background: rgba(168,213,181,0.1);
+  padding: 2px 7px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.doc-delete-btn {
+  opacity: 0;
+  width: 24px; height: 24px;
+  border-radius: 4px;
+  background: none;
+  border: none;
+  color: var(--text-hint);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s, color 0.2s;
+  flex-shrink: 0;
+}
+
+.doc-item:hover .doc-delete-btn { opacity: 1; }
+.doc-delete-btn:hover { color: var(--danger); }
+
+/* ========== MOBILE ========== */
+.mobile-topbar {
+  display: none;
+  padding: 12px 16px;
+  background: var(--ink);
+  border-bottom: 1px solid var(--border-secondary);
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.mobile-menu-btn {
+  width: 36px; height: 36px;
+  background: none;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-topbar .nav-logo {
+  font-family: var(--serif);
+  font-size: 22px;
+  color: var(--text-primary);
+}
+
+.mobile-topbar .nav-logo i { font-style: italic; color: var(--mint); }
+
+.mobile-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 90;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: 0; top: 0; bottom: 0;
+    z-index: 100;
+    transform: translateX(-100%);
+    background: var(--bg-sidebar);
+  }
+  .sidebar.open { transform: translateX(0); }
+  .mobile-overlay.show { display: block; }
+  .mobile-topbar { display: flex; }
+  .docs-panel { display: none; }
+  .main-header { display: none; }
+  .msg-row { padding: 6px 16px; }
+  .input-area { padding: 12px 16px 16px; }
+  .welcome-suggestions { grid-template-columns: 1fr; }
+}
+
+@media (min-width: 769px) and (max-width: 1100px) {
+  .docs-panel { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">KL<i>EO</i></div>
+      <span class="sidebar-badge">PRO</span>
+    </div>
+
+    <button class="new-chat-btn" onclick="startNewChat()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      Neuer Chat
+    </button>
+
+    <div class="sidebar-section-label">Verlauf</div>
+
+    <div class="chat-list" id="chatList">
+      <div class="chat-item active" onclick="loadChat(0)">
+        <div class="chat-item-icon">💬</div>
+        <div class="chat-item-text">
+          <div class="chat-item-title">Wärmepumpe Altbau Förderung</div>
+          <div class="chat-item-time">Heute, 09:14</div>
+        </div>
+        <button class="chat-item-delete" onclick="event.stopPropagation(); deleteChat(0)" title="Löschen">✕</button>
+      </div>
+      <div class="chat-item" onclick="loadChat(1)">
+        <div class="chat-item-icon">💬</div>
+        <div class="chat-item-text">
+          <div class="chat-item-title">iSFP Pflichtangaben Checkliste</div>
+          <div class="chat-item-time">Gestern, 15:42</div>
+        </div>
+        <button class="chat-item-delete" onclick="event.stopPropagation(); deleteChat(1)" title="Löschen">✕</button>
+      </div>
+      <div class="chat-item" onclick="loadChat(2)">
+        <div class="chat-item-icon">💬</div>
+        <div class="chat-item-text">
+          <div class="chat-item-title">KfW 458 Maximalbeträge</div>
+          <div class="chat-item-time">Mo, 11:03</div>
+        </div>
+        <button class="chat-item-delete" onclick="event.stopPropagation(); deleteChat(2)" title="Löschen">✕</button>
+      </div>
+    </div>
+
+    <div class="sidebar-bottom">
+      <button class="sidebar-docs-btn" onclick="toggleDocs()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Dokumente
+        <span class="doc-count" id="docCountBadge">6</span>
+      </button>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar">MR</div>
+        <div>
+          <div class="sidebar-user-name">M&R Energieoptimierung</div>
+          <div class="sidebar-user-plan">KLEO Pro</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- Mobile topbar -->
+    <div class="mobile-topbar">
+      <button class="mobile-menu-btn" onclick="toggleSidebar()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+      </button>
+      <div class="nav-logo">KL<i>EO</i></div>
+      <button class="mobile-menu-btn" onclick="toggleTheme()" id="themeToggleMobile" title="Hell/Dunkel" style="margin-left:auto">
+        <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        <svg class="icon-moon" style="display:none" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+      </button>
+    </div>
+
+    <!-- Desktop header -->
+    <div class="main-header">
+      <div class="main-header-avatar">K</div>
+      <div class="main-header-info">
+        <div class="main-header-name">KLEO</div>
+        <div class="main-header-status">
+          <span class="status-dot"></span>
+          Online · Bereit
+        </div>
+      </div>
+      <div class="main-header-actions">
+        <button class="header-action-btn" onclick="toggleTheme()" id="themeToggle" title="Hell/Dunkel">
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          <svg class="icon-moon" style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        </button>
+        <button class="header-action-btn" onclick="toggleDocs()" title="Dokumente">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Messages / Welcome -->
+    <div class="messages" id="messagesArea">
+      <div class="welcome-state" id="welcomeState">
+        <div class="welcome-logo">K</div>
+        <h2 class="welcome-title">Fragen Sie KL<i>EO</i></h2>
+        <p class="welcome-sub">Stellen Sie eine Frage zu Förderungen, iSFP, Antragstellung oder Kundenkommunikation. KLEO antwortet auf Basis Ihrer Fachdokumente.</p>
+        <div class="welcome-suggestions">
+          <button class="suggestion-btn" onclick="askSuggestion('Welche Förderung gibt es für eine Wärmepumpe im Altbau?')">
+            <span class="suggestion-icon">🔍</span>
+            <span class="suggestion-text">Welche Förderung gibt es für eine Wärmepumpe im Altbau?</span>
+          </button>
+          <button class="suggestion-btn" onclick="askSuggestion('Gilt der iSFP-Bonus bei KfW 458?')">
+            <span class="suggestion-icon">📋</span>
+            <span class="suggestion-text">Gilt der iSFP-Bonus bei der Heizungsförderung?</span>
+          </button>
+          <button class="suggestion-btn" onclick="askSuggestion('Was muss ich beim Antragszeitpunkt beachten?')">
+            <span class="suggestion-icon">⏰</span>
+            <span class="suggestion-text">Was muss ich beim Antragszeitpunkt beachten?</span>
+          </button>
+          <button class="suggestion-btn" onclick="askSuggestion('Erstelle eine Kundenantwort zur Förderhöhe bei Fenstertausch')">
+            <span class="suggestion-icon">✉️</span>
+            <span class="suggestion-text">Kundenantwort zur Förderhöhe bei Fenstertausch</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="input-area">
+      <div class="input-container">
+        <textarea class="input-field" id="mainInput" rows="1" placeholder="Frage an KLEO stellen..." oninput="autoGrow(this)" onkeydown="handleKey(event)"></textarea>
+        <div class="input-actions">
+          <button class="input-action-btn input-send-btn" id="sendBtn" onclick="sendMessage()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="input-hint">KLEO antwortet ausschließlich auf Basis Ihrer hochgeladenen Dokumente.</div>
+    </div>
+  </main>
+
+  <!-- DOCUMENTS PANEL -->
+  <aside class="docs-panel" id="docsPanel">
+    <div class="docs-header">
+      <h3>Wissensdatenbank</h3>
+      <button class="docs-close-btn" onclick="toggleDocs()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="docs-upload-area" onclick="document.getElementById('fileUpload').click()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <div class="docs-upload-text"><strong>PDF hochladen</strong><br>oder hier ablegen</div>
+      <input type="file" id="fileUpload" accept=".pdf" style="display:none" onchange="handleUpload(this)">
+    </div>
+
+    <div class="sidebar-section-label" style="padding:12px 16px 8px">Dokumente</div>
+
+    <div class="docs-list" id="docsList">
+      <div class="doc-item">
+        <div class="doc-icon">PDF</div>
+        <div class="doc-info">
+          <div class="doc-name">BEG Einzelmaßnahmen Merkblatt</div>
+          <div class="doc-meta">BAFA · 2,4 MB · März 2026</div>
+        </div>
+        <span class="doc-chunks">48</span>
+        <button class="doc-delete-btn" title="Entfernen">✕</button>
+      </div>
+      <div class="doc-item">
+        <div class="doc-icon">PDF</div>
+        <div class="doc-info">
+          <div class="doc-name">KfW 458 Förderrichtlinie</div>
+          <div class="doc-meta">KfW · 1,8 MB · März 2026</div>
+        </div>
+        <span class="doc-chunks">36</span>
+        <button class="doc-delete-btn" title="Entfernen">✕</button>
+      </div>
+      <div class="doc-item">
+        <div class="doc-icon">PDF</div>
+        <div class="doc-info">
+          <div class="doc-name">KfW 261 Effizienzgebäude</div>
+          <div class="doc-meta">KfW · 3,1 MB · Feb 2026</div>
+        </div>
+        <span class="doc-chunks">62</span>
+        <button class="doc-delete-btn" title="Entfernen">✕</button>
+      </div>
+      <div class="doc-item">
+        <div class="doc-icon">PDF</div>
+        <div class="doc-info">
+          <div class="doc-name">GEG Gebäudeenergiegesetz</div>
+          <div class="doc-meta">BMWK · 4,7 MB · Jan 2026</div>
+        </div>
+        <span class="doc-chunks">94</span>
+        <button class="doc-delete-btn" title="Entfernen">✕</button>
+      </div>
+      <div class="doc-item">
+        <div class="doc-icon">PDF</div>
+        <div class="doc-info">
+          <div class="doc-name">iSFP Erstellungshandbuch</div>
+          <div class="doc-meta">BAFA · 2,9 MB · Feb 2026</div>
+        </div>
+        <span class="doc-chunks">55</span>
+        <button class="doc-delete-btn" title="Entfernen">✕</button>
+      </div>
+      <div class="doc-item">
+        <div class="doc-icon">PDF</div>
+        <div class="doc-info">
+          <div class="doc-name">M&R Interne Checklisten</div>
+          <div class="doc-meta">Intern · 0,8 MB · März 2026</div>
+        </div>
+        <span class="doc-chunks">18</span>
+        <button class="doc-delete-btn" title="Entfernen">✕</button>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- Mobile overlay -->
+<div class="mobile-overlay" id="mobileOverlay" onclick="toggleSidebar()"></div>
+
+<script>
+// ========== CONFIG ==========
+const WEBHOOK_URL = '/.netlify/functions/chat';
+
+// ========== THEME ==========
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') !== 'light';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  localStorage.setItem('kleo_theme', isDark ? 'light' : 'dark');
+  updateThemeIcons(!isDark);
+}
+
+function updateThemeIcons(isDark) {
+  document.querySelectorAll('.icon-sun').forEach(el => el.style.display = isDark ? 'block' : 'none');
+  document.querySelectorAll('.icon-moon').forEach(el => el.style.display = isDark ? 'none' : 'block');
+}
+
+// Load saved theme
+(function() {
+  const saved = localStorage.getItem('kleo_theme');
+  if (saved === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+    updateThemeIcons(false);
+  }
+})();
+
+// ========== TEXTAREA AUTO-GROW ==========
+function autoGrow(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 150) + 'px';
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+// ========== SEND MESSAGE ==========
+let isLoading = false;
+
+async function sendMessage() {
+  const input = document.getElementById('mainInput');
+  const q = input.value.trim();
+  if (!q || isLoading) return;
+
+  isLoading = true;
+  const welcome = document.getElementById('welcomeState');
+  if (welcome) welcome.remove();
+
+  const area = document.getElementById('messagesArea');
+
+  // Add user message
+  area.innerHTML += createUserMsg(q);
+  input.value = '';
+  input.style.height = 'auto';
+  document.getElementById('sendBtn').disabled = true;
+  area.scrollTop = area.scrollHeight;
+
+  // Add typing
+  const typingId = 't' + Date.now();
+  area.innerHTML += `<div class="typing-row" id="${typingId}">
+    <div class="msg-avatar kleo-av">K</div>
+    <div class="typing-dots"><span></span><span></span><span></span></div>
+  </div>`;
+  area.scrollTop = area.scrollHeight;
+
+  try {
+    const res = await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q, session_id: getSession() })
+    });
+    const data = await res.json();
+    document.getElementById(typingId)?.remove();
+
+    const answer = data.answer || data.text || '';
+    const sources = data.sources || [];
+    area.innerHTML += createKleoMsg(answer, sources);
+  } catch (err) {
+    document.getElementById(typingId)?.remove();
+    const fallback = getFallback(q);
+    area.innerHTML += fallback;
+  }
+
+  isLoading = false;
+  document.getElementById('sendBtn').disabled = false;
+  input.focus();
+  area.scrollTop = area.scrollHeight;
+}
+
+function askSuggestion(q) {
+  document.getElementById('mainInput').value = q;
+  sendMessage();
+}
+
+// ========== MESSAGE TEMPLATES ==========
+function createUserMsg(text) {
+  return `<div class="msg-row user">
+    <div class="msg-avatar user-av">C</div>
+    <div class="msg-content"><div class="msg-bubble">${esc(text)}</div></div>
+  </div>`;
+}
+
+function createKleoMsg(text, sources) {
+  let srcHtml = '';
+  if (sources && sources.length) {
+    srcHtml = '<div class="msg-sources">' + sources.slice(0, 4).map(s =>
+      `<span class="source-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${esc(s.title || 'Dokument')}${s.page_number ? ' · S.' + s.page_number : ''}</span>`
+    ).join('') + '</div>';
+  }
+
+  const uid = 'fb' + Date.now();
+  return `<div class="msg-row kleo">
+    <div class="msg-avatar kleo-av">K</div>
+    <div class="msg-content">
+      <div class="msg-bubble">${fmt(text)}</div>
+      ${srcHtml}
+      <div class="msg-feedback" id="${uid}">
+        <button class="feedback-btn" onclick="feedback('${uid}','up',this)" title="Hilfreich">👍</button>
+        <button class="feedback-btn" onclick="feedback('${uid}','down',this)" title="Nicht hilfreich">👎</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function feedback(id, type, btn) {
+  const container = document.getElementById(id);
+  container.querySelectorAll('.feedback-btn').forEach(b => {
+    b.classList.remove('active-up', 'active-down');
+  });
+  btn.classList.add(type === 'up' ? 'active-up' : 'active-down');
+}
+
+// ========== FALLBACK DEMO ANSWERS ==========
+function getFallback(q) {
+  const l = q.toLowerCase();
+  let answer = '', sources = [];
+
+  if (l.includes('wärmepumpe') || l.includes('kfw 458') || l.includes('heizung') || l.includes('förderung')) {
+    answer = 'Seit 2024 ist die Wärmepumpenförderung ausschließlich über <strong>KfW 458</strong> geregelt – nicht mehr über BAFA.\n\n→ Grundförderung: <strong>30%</strong>\n→ Klimageschwindigkeitsbonus: <strong>+20%</strong> (bis Ende 2028)\n→ Einkommensbonus: <strong>+30%</strong> (unter 40.000 €/Jahr Haushaltseinkommen)\n→ Maximum: <strong>70%</strong> Förderquote / max. <strong>21.000 €</strong> pro Wohneinheit\n\n<em>Wichtig: Der iSFP-Bonus gilt bei KfW 458 nicht.</em>';
+    sources = [{ title: 'KfW 458 Förderrichtlinie', page_number: 3 }, { title: 'BEG Einzelmaßnahmen Merkblatt', page_number: 7 }];
+  } else if (l.includes('isfp') || l.includes('bonus')) {
+    answer = 'Der <strong>iSFP-Bonus (5%)</strong> gilt <strong>nicht</strong> bei KfW 458 (Heizungsförderung). Dies ist einer der häufigsten Irrtümer in der Energieberatung.\n\nDer iSFP-Bonus gilt ausschließlich bei BAFA-Programmen:\n→ Gebäudehülle (Dämmung, Fenster, Türen)\n→ Anlagentechnik (außer Heizungstausch)\n→ Heizungsoptimierung (hydraulischer Abgleich etc.)';
+    sources = [{ title: 'BEG Einzelmaßnahmen Merkblatt', page_number: 4 }, { title: 'KfW 458 Förderrichtlinie', page_number: 5 }];
+  } else if (l.includes('antrag') || l.includes('zeitpunkt') || l.includes('frist')) {
+    answer = '<strong>Kritische Regel:</strong> Der Förderantrag muss <strong>zwingend vor der Auftragsvergabe</strong> an den Handwerker gestellt werden.\n\nEin nachträglicher Antrag ist nicht möglich – das Vorhaben wird dann nicht gefördert. Dies ist die häufigste Fehlerquelle in der Beratungspraxis.\n\nDas gilt für alle KfW- und BAFA-Programme gleichermaßen.';
+    sources = [{ title: 'KfW-Merkblatt Antragstellung', page_number: 2 }];
+  } else if (l.includes('fenster') || l.includes('kunde') || l.includes('kommunikation')) {
+    answer = '<strong>Entwurf Kundenantwort – Fenstertausch Förderung:</strong>\n\n„Guten Tag Herr/Frau [Name],\n\nfür den Austausch Ihrer Fenster können Sie eine Förderung über das BAFA-Programm BEG Einzelmaßnahmen (Gebäudehülle) beantragen.\n\n→ Grundförderung: <strong>15%</strong> der förderfähigen Kosten\n→ Mit iSFP-Bonus: <strong>+5%</strong> (gesamt 20%)\n→ Förderfähige Kosten: max. 30.000 € pro Wohneinheit\n\nWichtig: Der Antrag muss vor der Auftragsvergabe an den Handwerker gestellt werden.\n\nIch übernehme die Antragstellung gerne für Sie."';
+    sources = [{ title: 'BEG Einzelmaßnahmen Merkblatt', page_number: 8 }, { title: 'M&R Interne Checklisten', page_number: 2 }];
+  } else {
+    answer = 'Vielen Dank für Ihre Frage. In der Demo-Version antworte ich auf Basis vordefinierter Beispiele.\n\nIm vollständigen System durchsuche ich Ihre gesamte Dokumentenbasis und antworte mit exakter Quellenangabe.\n\n<strong>Probieren Sie z.B.:</strong>\n→ „Welche Förderung gibt es für eine Wärmepumpe im Altbau?"\n→ „Gilt der iSFP-Bonus bei KfW 458?"\n→ „Was muss ich beim Antragszeitpunkt beachten?"\n→ „Erstelle eine Kundenantwort zur Förderhöhe bei Fenstertausch"';
+    sources = [];
+  }
+
+  return createKleoMsg(answer, sources);
+}
+
+// ========== SIDEBAR / PANEL ==========
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('mobileOverlay').classList.toggle('show');
+}
+
+function toggleDocs() {
+  document.getElementById('docsPanel').classList.toggle('hidden');
+}
+
+function startNewChat() {
+  const area = document.getElementById('messagesArea');
+  area.innerHTML = `<div class="welcome-state" id="welcomeState">
+    <div class="welcome-logo">K</div>
+    <h2 class="welcome-title">Fragen Sie KL<i>EO</i></h2>
+    <p class="welcome-sub">Stellen Sie eine Frage zu Förderungen, iSFP, Antragstellung oder Kundenkommunikation.</p>
+    <div class="welcome-suggestions">
+      <button class="suggestion-btn" onclick="askSuggestion('Welche Förderung gibt es für eine Wärmepumpe im Altbau?')">
+        <span class="suggestion-icon">🔍</span>
+        <span class="suggestion-text">Welche Förderung gibt es für eine Wärmepumpe im Altbau?</span>
+      </button>
+      <button class="suggestion-btn" onclick="askSuggestion('Gilt der iSFP-Bonus bei KfW 458?')">
+        <span class="suggestion-icon">📋</span>
+        <span class="suggestion-text">Gilt der iSFP-Bonus bei der Heizungsförderung?</span>
+      </button>
+      <button class="suggestion-btn" onclick="askSuggestion('Was muss ich beim Antragszeitpunkt beachten?')">
+        <span class="suggestion-icon">⏰</span>
+        <span class="suggestion-text">Was muss ich beim Antragszeitpunkt beachten?</span>
+      </button>
+      <button class="suggestion-btn" onclick="askSuggestion('Erstelle eine Kundenantwort zur Förderhöhe bei Fenstertausch')">
+        <span class="suggestion-icon">✉️</span>
+        <span class="suggestion-text">Kundenantwort zur Förderhöhe bei Fenstertausch</span>
+      </button>
+    </div>
+  </div>`;
+  document.getElementById('mainInput').focus();
+  // Close sidebar on mobile
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('mobileOverlay').classList.remove('show');
+}
+
+function loadChat(idx) {
+  // Placeholder: In production, load chat from storage/API
+  document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.chat-item')[idx]?.classList.add('active');
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('mobileOverlay').classList.remove('show');
+}
+
+function deleteChat(idx) {
+  const items = document.querySelectorAll('.chat-item');
+  if (items[idx]) items[idx].remove();
+}
+
+function handleUpload(input) {
+  if (!input.files.length) return;
+  const file = input.files[0];
+  // Placeholder: In production, send to Make.com upload webhook
+  alert('Upload gestartet: ' + file.name + '\n\nDiese Funktion wird über Make.com verbunden.');
+  input.value = '';
+}
+
+// ========== HELPERS ==========
+function esc(t) {
+  const d = document.createElement('div');
+  d.textContent = t;
+  return d.innerHTML;
+}
+
+function fmt(t) {
+  return t.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+}
+
+function getSession() {
+  let id = sessionStorage.getItem('kleo_s');
+  if (!id) { id = 'k-' + Math.random().toString(36).substr(2, 9); sessionStorage.setItem('kleo_s', id); }
+  return id;
+}
+
+// Start with docs panel hidden by default
+document.getElementById('docsPanel').classList.add('hidden');
+</script>
+</body>
+</html>
