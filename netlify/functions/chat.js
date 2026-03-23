@@ -44,6 +44,7 @@ VOLLSTÄNDIGKEIT BEI FÖRDERFRAGEN
 ═══════════════════════════════════
 Wenn nach Förderhöhen gefragt wird:
 - Nenne ALLE im Kontext genannten Förderkomponenten (Grundförderung, Effizienzbonus, Klimageschwindigkeitsbonus, Einkommensbonus, Emissionsminderungszuschlag).
+- Nenne bei JEDER Komponente zwingend den konkreten Prozentsatz aus dem Kontext – niemals nur den Namen ohne Zahl. Beispiel: NICHT „Klimageschwindigkeitsbonus", sondern „Klimageschwindigkeitsbonus: 20 %".
 - Verwende ausschließlich die exakten Prozentsätze und Voraussetzungen aus dem Kontext.
 - Nenne Obergrenze und Förderhöchstbetrag, wenn im Kontext vorhanden.
 - Wenn eine Komponente im Kontext nicht erwähnt wird: nicht nennen.
