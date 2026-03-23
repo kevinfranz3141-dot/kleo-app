@@ -103,7 +103,7 @@ exports.handler = async (event) => {
     const embData = await embResponse.json();
     const embedding = embData.data[0].embedding;
 
-    // Step 2: Search Supabase — 10 chunks for better coverage of all relevant info
+    // Step 2: Search Supabase — fetch 20 candidates for reranking
     const searchResponse = await fetch(SUPABASE_URL + "/rest/v1/rpc/match_document_chunks", {
       method: "POST",
       headers: {
@@ -113,14 +113,14 @@ exports.handler = async (event) => {
       },
       body: JSON.stringify({
         query_embedding: embedding,
-        match_count: 10,
+        match_count: 20,
         match_threshold: 0.2
       })
     });
-    const chunks = await searchResponse.json();
+    const candidates = await searchResponse.json();
 
     // CRITICAL: If no chunks found, do NOT call Claude — return standard "no documents" response
-    if (!Array.isArray(chunks) || chunks.length === 0) {
+    if (!Array.isArray(candidates) || candidates.length === 0) {
       return {
         statusCode: 200,
         headers,
@@ -131,8 +131,8 @@ exports.handler = async (event) => {
       };
     }
 
-    // Step 3: Fetch document titles for the matched chunks
-    const docIds = [...new Set(chunks.map(c => c.document_id).filter(Boolean))];
+    // Step 3: Fetch document titles for all candidates
+    const docIds = [...new Set(candidates.map(c => c.document_id).filter(Boolean))];
     const docTitles = {};
 
     if (docIds.length > 0) {
@@ -151,13 +151,50 @@ exports.handler = async (event) => {
       }
     }
 
-    // Step 4: Build context with real document titles
-    const context = chunks.map((c, i) => {
+    // Step 4: Rerank — Claude selects the 10 most relevant chunks from the 20 candidates
+    const rerankList = candidates.map((c, i) => {
+      const title = docTitles[c.document_id] || "Dokument";
+      return "[" + i + "] [" + title + " | Seite " + (c.page_number || "?") + "]\n" + c.content.substring(0, 400);
+    }).join("\n\n---\n\n");
+
+    const rerankResponse = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": ANTHROPIC_KEY,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 100,
+        messages: [{
+          role: "user",
+          content: "Frage: \"" + question + "\"\n\nWähle die 10 relevantesten Chunk-Indizes (0–" + (candidates.length - 1) + ") aus den folgenden Chunks für diese Frage. Antworte NUR mit einem JSON-Array von 10 Zahlen, z.B. [0,3,5,7,8,11,13,15,17,19]. Kein Text davor oder danach.\n\n" + rerankList
+        }]
+      })
+    });
+    const rerankData = await rerankResponse.json();
+
+    let selectedIndices;
+    try {
+      const match = rerankData.content[0].text.match(/\[[\d,\s]+\]/);
+      selectedIndices = JSON.parse(match[0])
+        .filter(i => Number.isInteger(i) && i >= 0 && i < candidates.length)
+        .slice(0, 10);
+    } catch (_) {
+      // Fallback: use first 10 candidates if reranking fails
+      selectedIndices = [...Array(Math.min(10, candidates.length)).keys()];
+    }
+
+    const chunks = selectedIndices.map(i => candidates[i]);
+
+    // Step 5: Build context from the 10 reranked chunks
+    const context = chunks.map(c => {
       const title = docTitles[c.document_id] || "Dokument";
       return "[" + title + " | Seite " + (c.page_number || "?") + "]\n" + c.content;
     }).join("\n\n---\n\n");
 
-    // Step 5: Build messages with conversation history for follow-up context
+    // Step 6: Build messages with conversation history for follow-up context
     const messages = [];
 
     // Add last 3 exchanges from conversation history (if provided)
@@ -170,13 +207,13 @@ exports.handler = async (event) => {
       });
     }
 
-    // Add current question with document context
+    // Add current question with reranked document context
     messages.push({
       role: "user",
       content: "Kontext aus der Wissensdatenbank:\n\n" + context + "\n\n---\n\nFrage des Energieberaters:\n" + question
     });
 
-    // Step 6: Ask Claude
+    // Step 7: Ask Claude for the actual answer
     const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -194,7 +231,7 @@ exports.handler = async (event) => {
     const claudeData = await claudeResponse.json();
     const answer = claudeData.content[0].text;
 
-    // Step 7: Build deduplicated sources with text excerpts (group by document)
+    // Step 8: Build deduplicated sources with text excerpts (group by document)
     const sourceMap = {};
     chunks.forEach(c => {
       const docId = c.document_id || "unknown";
