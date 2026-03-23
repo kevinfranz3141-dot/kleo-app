@@ -2207,23 +2207,19 @@ function renameDocument(docId, nameEl) {
 // ========== DOCUMENTS: DELETE ==========
 function deleteDocument(docId, btn) {
   const item = btn.closest('.doc-item');
-  
-  // Check if confirmation is already showing
+
   if (item.querySelector('.doc-confirm-bar')) return;
-  
+
   const docName = item.querySelector('.doc-name')?.textContent || 'Dokument';
-  
-  // Hide original content with CSS, add confirmation bar on top
-  Array.from(item.children).forEach(el => el.style.display = 'none');
-  
-  const confirmBar = document.createElement('div');
-  confirmBar.className = 'doc-confirm-bar';
-  confirmBar.innerHTML = `
-    <span class="doc-confirm-text">„${esc(docName)}" löschen?</span>
-    <button class="doc-confirm-yes" onclick="confirmDelete('${docId}', this)">Löschen</button>
-    <button class="doc-confirm-no" onclick="loadDocuments()">Abbrechen</button>
+
+  // Replace innerHTML so the confirm bar is the sole flex child and fills full width
+  item.innerHTML = `
+    <div class="doc-confirm-bar" style="width:100%">
+      <span class="doc-confirm-text">„${esc(docName)}" löschen?</span>
+      <button class="doc-confirm-yes" onclick="confirmDelete('${docId}', this)">Löschen</button>
+      <button class="doc-confirm-no" onclick="loadDocuments()">Abbrechen</button>
+    </div>
   `;
-  item.appendChild(confirmBar);
 }
 
 async function confirmDelete(docId, btn) {
