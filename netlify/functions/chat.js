@@ -151,41 +151,68 @@ exports.handler = async (event) => {
       }
     }
 
-    // Step 4: Rerank — Claude selects the 10 most relevant chunks from the 20 candidates
-    const rerankList = candidates.map((c, i) => {
-      const title = docTitles[c.document_id] || "Dokument";
-      return "[" + i + "] [" + title + " | Seite " + (c.page_number || "?") + "]\n" + c.content.substring(0, 400);
-    }).join("\n\n---\n\n");
+    // Step 4: Rerank — Claude Haiku selects the 10 most relevant chunks from the 20 candidates
+    const fallbackIndices = [...Array(Math.min(10, candidates.length)).keys()];
+    let selectedIndices = fallbackIndices;
 
-    const rerankResponse = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": ANTHROPIC_KEY,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 100,
-        messages: [{
-          role: "user",
-          content: "Frage: \"" + question + "\"\n\nWähle die 10 relevantesten Chunk-Indizes (0–" + (candidates.length - 1) + ") aus den folgenden Chunks für diese Frage. Antworte NUR mit einem JSON-Array von 10 Zahlen, z.B. [0,3,5,7,8,11,13,15,17,19]. Kein Text davor oder danach.\n\n" + rerankList
-        }]
-      })
-    });
-    const rerankData = await rerankResponse.json();
-
-    let selectedIndices;
     try {
-      const match = rerankData.content[0].text.match(/\[[\d,\s]+\]/);
-      selectedIndices = JSON.parse(match[0])
-        .filter(i => Number.isInteger(i) && i >= 0 && i < candidates.length)
-        .slice(0, 10);
-    } catch (_) {
-      // Fallback: use first 10 candidates if reranking fails
-      selectedIndices = [...Array(Math.min(10, candidates.length)).keys()];
+      const rerankList = candidates.map((c, i) => {
+        const title = docTitles[c.document_id] || "Dokument";
+        return "[" + i + "] [" + title + " | Seite " + (c.page_number || "?") + "]\n" + c.content.substring(0, 400);
+      }).join("\n\n---\n\n");
+
+      const rerankResponse = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": ANTHROPIC_KEY,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 100,
+          messages: [{
+            role: "user",
+            content: "Frage: \"" + question + "\"\n\nWähle die 10 relevantesten Chunk-Indizes (0–" + (candidates.length - 1) + ") aus den folgenden Chunks für diese Frage. Antworte NUR mit einem JSON-Array von 10 Zahlen, z.B. [0,3,5,7,8,11,13,15,17,19]. Kein Text davor oder danach.\n\n" + rerankList
+          }]
+        })
+      });
+
+      if (!rerankResponse.ok) {
+        const errText = await rerankResponse.text();
+        console.error("[rerank] Haiku HTTP error:", rerankResponse.status, errText);
+      } else {
+        const rerankData = await rerankResponse.json();
+        console.log("[rerank] Haiku raw response:", JSON.stringify(rerankData));
+
+        if (rerankData.error) {
+          console.error("[rerank] Haiku API error:", rerankData.error.type, rerankData.error.message);
+        } else {
+          const rawText = rerankData.content?.[0]?.text || "";
+          console.log("[rerank] Haiku text:", rawText);
+
+          const match = rawText.match(/\[[\d,\s]+\]/);
+          if (!match) {
+            console.error("[rerank] No JSON array found in Haiku response, using fallback");
+          } else {
+            const parsed = JSON.parse(match[0])
+              .filter(i => Number.isInteger(i) && i >= 0 && i < candidates.length);
+            console.log("[rerank] Parsed indices:", parsed);
+
+            if (parsed.length === 0) {
+              console.error("[rerank] Parsed indices empty, using fallback");
+            } else {
+              selectedIndices = parsed.slice(0, 10);
+            }
+          }
+        }
+      }
+    } catch (rerankErr) {
+      console.error("[rerank] Unexpected error:", rerankErr.message);
+      // selectedIndices already set to fallbackIndices
     }
 
+    console.log("[rerank] Final indices used:", selectedIndices);
     const chunks = selectedIndices.map(i => candidates[i]);
 
     // Step 5: Build context from the 10 reranked chunks
@@ -213,7 +240,8 @@ exports.handler = async (event) => {
       content: "Kontext aus der Wissensdatenbank:\n\n" + context + "\n\n---\n\nFrage des Energieberaters:\n" + question
     });
 
-    // Step 7: Ask Claude for the actual answer
+    // Step 7: Ask Claude Sonnet for the actual answer
+    console.log("[answer] Sending", chunks.length, "chunks to Sonnet, context length:", context.length);
     const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -228,8 +256,18 @@ exports.handler = async (event) => {
         messages: messages
       })
     });
+    if (!claudeResponse.ok) {
+      const errText = await claudeResponse.text();
+      console.error("[answer] Sonnet HTTP error:", claudeResponse.status, errText);
+      throw new Error("Sonnet API error " + claudeResponse.status + ": " + errText);
+    }
     const claudeData = await claudeResponse.json();
+    if (claudeData.error) {
+      console.error("[answer] Sonnet API error:", claudeData.error.type, claudeData.error.message);
+      throw new Error("Sonnet error: " + claudeData.error.message);
+    }
     const answer = claudeData.content[0].text;
+    console.log("[answer] Sonnet response length:", answer.length);
 
     // Step 8: Build deduplicated sources with text excerpts (group by document)
     const sourceMap = {};
