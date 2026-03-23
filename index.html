@@ -1904,8 +1904,8 @@ async function extractTextFromPDF(file) {
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const numPages = pdf.numPages;
-  let fullText = '';
   const pageTexts = [];
+  const allTaggedLines = []; // { text, pageNum, height, isBold, y }
 
   for (let i = 1; i <= numPages; i++) {
     const page = await pdf.getPage(i);
@@ -1914,103 +1914,133 @@ async function extractTextFromPDF(file) {
     const content = await page.getTextContent();
 
     // --- Step 1: Filter out header/footer items by Y-position ---
-    // PDF Y-coordinates: 0 = bottom, pageHeight = top
-    const footerThreshold = 55;   // Bottom 55pt = footer zone
-    const headerThreshold = pageHeight - 35; // Top 35pt = header zone (for repeated headers)
+    const footerThreshold = 55;
+    const headerThreshold = pageHeight - 35;
 
     const bodyItems = content.items.filter(item => {
       if (!item.str || item.str.trim().length === 0) return false;
       const y = item.transform[5];
-      // Remove footer items (bottom of page)
       if (y < footerThreshold) return false;
-      // Remove known header patterns in top zone
       if (y > headerThreshold) {
         const t = item.str.trim();
         if (/^(Merkblatt|Zuschuss\s*Nr\.|Stand:|Seite\s+\d)/i.test(t)) return false;
-        if (/^M\s*e\s*r\s*k\s*b\s*l\s*a\s*t\s*t/.test(t)) return false; // Spaced-out header text
+        if (/^M\s*e\s*r\s*k\s*b\s*l\s*a\s*t\s*t/.test(t)) return false;
       }
       return true;
     });
 
     // --- Step 2: Sort items top-to-bottom, left-to-right ---
     bodyItems.sort((a, b) => {
-      const yDiff = b.transform[5] - a.transform[5]; // Higher Y = higher on page
-      if (Math.abs(yDiff) > 3) return yDiff; // Different lines
-      return a.transform[4] - b.transform[4]; // Same line: left to right
+      const yDiff = b.transform[5] - a.transform[5];
+      if (Math.abs(yDiff) > 3) return yDiff;
+      return a.transform[4] - b.transform[4];
     });
 
-    // --- Step 3: Group into lines and detect paragraph breaks ---
     if (bodyItems.length === 0) {
       pageTexts.push('');
       continue;
     }
 
-    const lines = [];
-    let currentLine = [bodyItems[0]];
+    // --- Step 3: Group items into lines, preserving font metadata ---
+    const lineGroups = [];
+    let currentGroup = [bodyItems[0]];
 
     for (let j = 1; j < bodyItems.length; j++) {
-      const prev = bodyItems[j - 1];
-      const curr = bodyItems[j];
-      const yGap = Math.abs(prev.transform[5] - curr.transform[5]);
-
+      const yGap = Math.abs(bodyItems[j - 1].transform[5] - bodyItems[j].transform[5]);
       if (yGap < 3) {
-        // Same line
-        currentLine.push(curr);
+        currentGroup.push(bodyItems[j]);
       } else {
-        // New line — save previous line
-        lines.push({
-          text: currentLine.map(it => it.str).join(' ').trim(),
-          y: currentLine[0].transform[5],
-          height: currentLine[0].height || 10
-        });
-        currentLine = [curr];
+        lineGroups.push(currentGroup);
+        currentGroup = [bodyItems[j]];
       }
     }
-    // Don't forget last line
-    if (currentLine.length > 0) {
-      lines.push({
-        text: currentLine.map(it => it.str).join(' ').trim(),
-        y: currentLine[0].transform[5],
-        height: currentLine[0].height || 10
-      });
-    }
+    if (currentGroup.length > 0) lineGroups.push(currentGroup);
 
-    // --- Step 4: Build page text with paragraph breaks ---
-    // A paragraph break = Y gap > 1.3× the typical line height
+    // Convert groups to tagged line objects
+    const taggedLines = lineGroups.map(grp => ({
+      text:   grp.map(it => it.str).join(' ').trim(),
+      y:      grp[0].transform[5],
+      height: Math.max(...grp.map(it => it.height || 0)) || grp[0].height || 10,
+      isBold: grp.some(it => /bold/i.test(it.fontName || '')),
+      pageNum: i
+    })).filter(l => l.text.length > 0);
+
+    allTaggedLines.push(...taggedLines);
+
+    // --- Step 4: Build page text string (for pageTexts / title detection) ---
     let pageStr = '';
-    for (let j = 0; j < lines.length; j++) {
-      const line = lines[j];
-      if (line.text.length === 0) continue;
-
-      // Skip lines that are just page numbers or spaced-out junk
+    for (let j = 0; j < taggedLines.length; j++) {
+      const line = taggedLines[j];
       if (/^\d+$/.test(line.text.trim())) continue;
-      if (/^[A-Z]\s[a-z]\s[a-z]/.test(line.text) && line.text.length > 50) continue; // Spaced-out decorative text
+      if (/^[A-Z]\s[a-z]\s[a-z]/.test(line.text) && line.text.length > 50) continue;
 
       if (j > 0 && pageStr.length > 0) {
-        const prevLine = lines[j - 1];
-        const yGap = prevLine.y - line.y; // How far down we moved
-        const lineHeight = prevLine.height || line.height || 12;
-        
-        if (yGap > lineHeight * 1.8) {
-          // Big gap = paragraph break
-          pageStr += '\n\n';
-        } else {
-          // Normal line continuation
-          pageStr += ' ';
-        }
+        const prev = taggedLines[j - 1];
+        const yGap = prev.y - line.y;
+        const lh = prev.height || line.height || 12;
+        pageStr += yGap > lh * 1.8 ? '\n\n' : ' ';
       }
       pageStr += line.text;
     }
 
     const cleanedPage = pageStr.trim();
     pageTexts.push(cleanedPage);
-    if (cleanedPage.length > 0) {
-      fullText += cleanedPage + '\n\n';
-    }
   }
 
-  // --- Title detection (from structured lines of page 1) ---
-  const titleCandidates = pageTexts[0]
+  const fullText = pageTexts.filter(p => p.length > 0).join('\n\n');
+
+  // --- Detect body font size (most-frequent height across all lines) ---
+  const heightCounts = {};
+  allTaggedLines.forEach(l => {
+    const h = String(Math.round(l.height * 2) / 2); // bucket to 0.5 pt
+    heightCounts[h] = (heightCounts[h] || 0) + 1;
+  });
+  const bodyH = parseFloat(
+    Object.entries(heightCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '10'
+  );
+
+  // --- Identify heading lines ---
+  const isHeading = l =>
+    l.text.length <= 200 &&
+    !/^\d+$/.test(l.text.trim()) &&
+    (l.height > bodyH * 1.15 || (l.isBold && l.height >= bodyH * 0.9));
+
+  // --- Build sections: each heading starts a new section ---
+  const sections = [];
+  let cur = { heading: null, lines: [], pageNum: 1 };
+
+  for (const line of allTaggedLines) {
+    if (/^\d+$/.test(line.text.trim())) continue;
+    if (/^[A-Z]\s[a-z]\s[a-z]/.test(line.text) && line.text.length > 50) continue;
+
+    if (isHeading(line)) {
+      if (cur.lines.length > 0) sections.push({ ...cur });
+      cur = { heading: line.text, lines: [], pageNum: line.pageNum };
+    } else {
+      if (cur.lines.length === 0 && cur.heading) cur.pageNum = line.pageNum;
+      cur.lines.push(line);
+    }
+  }
+  if (cur.lines.length > 0 || cur.heading) sections.push(cur);
+
+  // Convert section line-arrays to text strings (with paragraph-break detection)
+  const textSections = sections.map(sec => {
+    let text = '';
+    for (let j = 0; j < sec.lines.length; j++) {
+      const line = sec.lines[j];
+      if (j > 0 && text.length > 0) {
+        const prev = sec.lines[j - 1];
+        const yGap = prev.y - line.y;
+        const lh = prev.height || line.height || 12;
+        text += (line.pageNum !== prev.pageNum || yGap > lh * 1.8) ? '\n\n' : ' ';
+      }
+      text += line.text;
+    }
+    return { heading: sec.heading, text: text.trim(), pageNum: sec.pageNum };
+  }).filter(sec => sec.text.length > 30 || sec.heading);
+
+  // --- Title detection (from page 1 text) ---
+  const titleCandidates = (pageTexts[0] || '')
     .split(/\n\n/)
     .map(l => l.trim())
     .filter(l => l.length > 14 && l.length < 200)
@@ -2020,45 +2050,73 @@ async function extractTextFromPDF(file) {
     .filter(l => !/^(bundesanzeiger|amtlicher teil|bekanntmachung)/i.test(l))
     .filter(l => !/^(gültig ab|auftraggeber|bank aus)/i.test(l))
     .filter(l => (l.match(/\d/g) || []).length < l.length * 0.4);
-  
+
   const bestTitle = titleCandidates.slice(0, 3).sort((a, b) => b.length - a.length)[0];
   const title = bestTitle || file.name.replace(/\.pdf$/i, '').replace(/[_-]/g, ' ');
 
-  return { text: fullText, title, numPages, pageTexts };
+  return { text: fullText, title, numPages, pageTexts, sections: textSections };
 }
 
 // ========== TEXT CHUNKING (im Browser) ==========
-function chunkText(text, pageTexts) {
-  // Step 1: Light cleanup — footers/headers already removed by extractTextFromPDF via Y-position
+function chunkText(text, pageTexts, sections) {
+  // --- Primary: section-based chunking (cuts at heading boundaries) ---
+  if (sections && sections.length > 0) {
+    const chunks = [];
+
+    for (const sec of sections) {
+      const prefix = sec.heading ? sec.heading + '\n\n' : '';
+      if (!sec.text && !sec.heading) continue;
+
+      // Section fits in one chunk
+      if ((prefix + sec.text).length <= CHUNK_SIZE) {
+        chunks.push({
+          content: (prefix + sec.text).trim(),
+          chunk_index: chunks.length,
+          page_number: sec.pageNum
+        });
+        continue;
+      }
+
+      // Section too long: split at paragraph boundaries, prepend heading to each sub-chunk
+      const paragraphs = sec.text.split(/\n\n+/).filter(p => p.trim().length > 30);
+      let buffer = prefix;
+
+      for (const para of paragraphs) {
+        if (buffer.length + para.length + 2 > CHUNK_SIZE && buffer.length > prefix.length + 100) {
+          chunks.push({ content: buffer.trim(), chunk_index: chunks.length, page_number: sec.pageNum });
+          buffer = prefix + para;
+        } else {
+          buffer += (buffer.length > 0 ? '\n\n' : '') + para;
+        }
+      }
+      if (buffer.trim().length > 50) {
+        chunks.push({ content: buffer.trim(), chunk_index: chunks.length, page_number: sec.pageNum });
+      }
+    }
+
+    if (chunks.length > 0) return chunks;
+  }
+
+  // --- Fallback: paragraph-based chunking (no heading info available) ---
   const cleaned = text
     .replace(/\r\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .replace(/[ \t]{2,}/g, ' ')
-    // Only remove inline remnants that might survive (line-safe patterns)
     .replace(/^.*Seite\s+\d+\s*(von|of)\s*\d+.*$/gim, '')
     .replace(/^.*Bestellnummer:\s*[\d\s]+.*$/gim, '')
     .replace(/^.*Stand:\s*\d{1,2}\/\d{4}.*$/gim, '')
     .replace(/\n{2,}/g, '\n\n')
     .trim();
 
-  // Step 2: Split into paragraphs
   const paragraphs = cleaned.split(/\n\n+/).filter(p => p.trim().length > 30);
-  
   const chunks = [];
   let buffer = '';
   let bufferStart = 0;
   let charOffset = 0;
 
-  for (let pi = 0; pi < paragraphs.length; pi++) {
-    const para = paragraphs[pi].trim();
-    
-    // If adding this paragraph would exceed chunk size
+  for (const para of paragraphs) {
     if (buffer.length + para.length + 2 > CHUNK_SIZE && buffer.length > 100) {
-      // Save current buffer as chunk
-      const pageNum = estimatePage(bufferStart, pageTexts);
-      chunks.push({ content: buffer.trim(), chunk_index: chunks.length, page_number: pageNum });
-      
-      // Start new buffer with overlap: take last paragraph from buffer
+      chunks.push({ content: buffer.trim(), chunk_index: chunks.length, page_number: estimatePage(bufferStart, pageTexts) });
       const lastPara = buffer.split(/\n\n/).pop() || '';
       buffer = lastPara + '\n\n' + para;
       bufferStart = charOffset - lastPara.length;
@@ -2068,14 +2126,11 @@ function chunkText(text, pageTexts) {
     }
     charOffset += para.length + 2;
   }
-  
-  // Don't forget last buffer
   if (buffer.trim().length > 50) {
-    const pageNum = estimatePage(bufferStart, pageTexts);
-    chunks.push({ content: buffer.trim(), chunk_index: chunks.length, page_number: pageNum });
+    chunks.push({ content: buffer.trim(), chunk_index: chunks.length, page_number: estimatePage(bufferStart, pageTexts) });
   }
-  
-  // Fallback: if paragraph-based chunking produced nothing (dense text without breaks)
+
+  // Last-resort: character-based chunking for dense text without breaks
   if (chunks.length === 0 && cleaned.length > 50) {
     let start = 0;
     while (start < cleaned.length) {
@@ -2531,7 +2586,7 @@ async function uploadSinglePDF(file, fileNum, totalFiles, customTitle) {
     status.className = 'upload-status';
     fill.style.width = '5%';
 
-    const { text: pdfText, title: autoTitle, numPages, pageTexts } = await extractTextFromPDF(file);
+    const { text: pdfText, title: autoTitle, numPages, pageTexts, sections } = await extractTextFromPDF(file);
 
     // Use custom title from user input, fallback to auto-detected
     const title = customTitle || autoTitle;
@@ -2544,7 +2599,7 @@ async function uploadSinglePDF(file, fileNum, totalFiles, customTitle) {
     status.textContent = `${numPages} Seiten gelesen. Chunking...`;
 
     // Schritt 2: Chunks erstellen
-    const chunks = chunkText(pdfText, pageTexts);
+    const chunks = chunkText(pdfText, pageTexts, sections);
     fill.style.width = '20%';
     status.textContent = `${chunks.length} Chunks erstellt. Dokument wird angelegt...`;
 
