@@ -1702,11 +1702,9 @@ body {
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 // ========== AUTH ==========
-// Passwort-Schutz via SHA-256-Vergleich.
-// Passwort ändern: PASSWORD_REF auf neues Passwort setzen.
-// Für reinen Hash-Betrieb (kein Klartext): sha256hex(passwort) in der Konsole ausführen,
-// Ergebnis als EXPECTED_HASH hardcoden und PASSWORD_REF entfernen.
-const PASSWORD_REF = 'kleo2026';
+// Passwort wird aus URL-Parameter ?pw= gelesen, Fallback: 'kleo2026'.
+// Kunden-URL: /?kunde=MusterGmbH&pw=geheimesPasswort
+const PASSWORD_REF = new URLSearchParams(window.location.search).get('pw') || 'kleo2026';
 
 async function sha256hex(str) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
