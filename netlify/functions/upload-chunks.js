@@ -2,15 +2,19 @@
  * KLEO Upload Chunks – Chunks embedden und speichern
  * ====================================================
  * POST /.netlify/functions/upload-chunks
- * Body: { document_id: "...", chunks: [{ content: "...", chunk_index: 0, page_number: 1 }, ...] }
- * Response: { saved: N }
- * 
+ * Body: { document_id, chunks, generate_summary?, doc_text? }
+ * Response: { saved: N, summary_saved?: true }
+ *
  * Verarbeitet max. 10 Chunks pro Request (bleibt unter 10s Timeout).
+ * Wenn generate_summary=true: erzeugt einen zusätzlichen Zusammenfassungs-Chunk
+ * via Claude aus doc_text (ersten 3000 Zeichen) und speichert ihn als
+ * chunk_index=0 / page_number=0.
  */
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://izdlrotfclgpockskmma.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const OPENAI_KEY = process.env.OPENAI_KEY;
+const ANTHROPIC_KEY = process.env.ANTHROPIC_KEY;
 
 exports.handler = async (event) => {
   const headers = {
@@ -23,7 +27,7 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Nur POST' }) };
 
   try {
-    const { document_id, chunks } = JSON.parse(event.body);
+    const { document_id, chunks, generate_summary, doc_text } = JSON.parse(event.body);
 
     if (!document_id || !chunks || !chunks.length) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'document_id und chunks erforderlich' }) };
@@ -79,10 +83,76 @@ exports.handler = async (event) => {
       throw new Error(`Supabase: ${storeRes.status} – ${err}`);
     }
 
+    // 3. Optionaler Zusammenfassungs-Chunk (nur beim letzten Batch)
+    let summary_saved = false;
+    if (generate_summary && doc_text) {
+      try {
+        // Claude erstellt kompakte Zusammenfassung
+        const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'x-api-key': ANTHROPIC_KEY,
+            'anthropic-version': '2023-06-01',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 1024,
+            messages: [{
+              role: 'user',
+              content: `Erstelle eine kompakte Zusammenfassung des folgenden Dokuments. Nenne alle Kernzahlen, Prozentsätze, Fristen und wichtigsten Regeln vollständig und präzise. Schreibe nur die Zusammenfassung, keinen einleitenden Satz.\n\n${doc_text.substring(0, 3000)}`,
+            }],
+          }),
+        });
+
+        if (claudeRes.ok) {
+          const claudeData = await claudeRes.json();
+          const summaryText = claudeData.content?.[0]?.text;
+
+          if (summaryText) {
+            // Embedding für die Zusammenfassung
+            const embSumRes = await fetch('https://api.openai.com/v1/embeddings', {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${OPENAI_KEY}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ model: 'text-embedding-ada-002', input: summaryText }),
+            });
+
+            if (embSumRes.ok) {
+              const embSumData = await embSumRes.json();
+              const summaryEmbedding = embSumData.data[0].embedding;
+
+              await fetch(`${SUPABASE_URL}/rest/v1/document_chunks`, {
+                method: 'POST',
+                headers: {
+                  'apikey': SUPABASE_KEY,
+                  'Authorization': `Bearer ${SUPABASE_KEY}`,
+                  'Content-Type': 'application/json',
+                  'Prefer': 'return=minimal',
+                },
+                body: JSON.stringify([{
+                  document_id,
+                  content: '[ZUSAMMENFASSUNG] ' + summaryText,
+                  embedding: JSON.stringify(summaryEmbedding),
+                  page_number: 0,
+                  chunk_index: 0,
+                }]),
+              });
+              summary_saved = true;
+            }
+          }
+        } else {
+          console.error('Summary Claude error:', claudeRes.status, await claudeRes.text());
+        }
+      } catch (sumErr) {
+        console.error('Summary generation failed (non-fatal):', sumErr.message);
+        // Nicht fatal — Upload trotzdem als Erfolg werten
+      }
+    }
+
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ saved: batch.length }),
+      body: JSON.stringify({ saved: batch.length, summary_saved }),
     };
 
   } catch (error) {

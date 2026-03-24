@@ -2919,10 +2919,15 @@ async function uploadSinglePDF(file, fileNum, totalFiles, customTitle) {
       
       status.textContent = `${prefix}Batch ${batchNum}/${totalBatches} – Embeddings & Speichern...`;
       
+      const isLastBatch = (i + BATCH_SIZE) >= chunks.length;
       const chunkRes = await fetch(UPLOAD_CHUNKS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ document_id: documentId, chunks: batch }),
+        body: JSON.stringify({
+          document_id: documentId,
+          chunks: batch,
+          ...(isLastBatch ? { generate_summary: true, doc_text: pdfText.substring(0, 3000) } : {}),
+        }),
       });
 
       const chunkData = await chunkRes.json();
