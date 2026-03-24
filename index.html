@@ -1324,9 +1324,108 @@ body {
 @media (min-width: 769px) and (max-width: 1100px) {
   .docs-panel { display: none; }
 }
+
+/* ========== AUTH OVERLAY ========== */
+#authOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: var(--bg-app);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#authOverlay.hidden { display: none; }
+
+.auth-box {
+  width: 100%;
+  max-width: 360px;
+  padding: 40px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.auth-logo {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--sage), var(--leaf));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--serif);
+  font-size: 30px;
+  font-style: italic;
+  color: #fff;
+  box-shadow: 0 12px 40px rgba(45,90,61,0.3);
+  margin-bottom: 4px;
+}
+
+.auth-title {
+  font-family: var(--serif);
+  font-size: 26px;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+}
+
+.auth-sub {
+  font-size: 14px;
+  color: var(--text-tertiary);
+  margin-top: -12px;
+}
+
+.auth-input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: 12px;
+  padding: 13px 16px;
+  font-family: var(--sans);
+  font-size: 15px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.2s;
+}
+.auth-input:focus { border-color: rgba(74,140,92,0.5); }
+.auth-input::placeholder { color: var(--text-hint); }
+
+.auth-btn {
+  width: 100%;
+  padding: 13px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, var(--sage), var(--leaf));
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.auth-btn:hover { opacity: 0.88; }
+
+.auth-error {
+  font-size: 13px;
+  color: var(--danger);
+  min-height: 18px;
+}
 </style>
 </head>
 <body>
+
+<!-- ========== AUTH OVERLAY ========== -->
+<div id="authOverlay">
+  <div class="auth-box">
+    <div class="auth-logo">K</div>
+    <div class="auth-title">KLEO</div>
+    <div class="auth-sub">Bitte Passwort eingeben</div>
+    <input id="authInput" class="auth-input" type="password" placeholder="Passwort" autocomplete="current-password"
+           onkeydown="if(event.key==='Enter')submitAuth()">
+    <div class="auth-error" id="authError"></div>
+    <button class="auth-btn" onclick="submitAuth()">Anmelden</button>
+  </div>
+</div>
 
 <div class="app">
 
@@ -1494,6 +1593,44 @@ body {
 <script>
 // pdf.js Worker konfigurieren
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ========== AUTH ==========
+// Passwort-Schutz via SHA-256-Vergleich.
+// Passwort ändern: PASSWORD_REF auf neues Passwort setzen.
+// Für reinen Hash-Betrieb (kein Klartext): sha256hex(passwort) in der Konsole ausführen,
+// Ergebnis als EXPECTED_HASH hardcoden und PASSWORD_REF entfernen.
+const PASSWORD_REF = 'kleo2026';
+
+async function sha256hex(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+(async () => {
+  if (sessionStorage.getItem('kleo_auth') === '1') {
+    document.getElementById('authOverlay').classList.add('hidden');
+  } else {
+    setTimeout(() => document.getElementById('authInput')?.focus(), 50);
+  }
+})();
+
+async function submitAuth() {
+  const input = document.getElementById('authInput').value;
+  const [inputHash, expectedHash] = await Promise.all([
+    sha256hex(input),
+    sha256hex(PASSWORD_REF)
+  ]);
+  if (inputHash === expectedHash) {
+    sessionStorage.setItem('kleo_auth', '1');
+    document.getElementById('authOverlay').classList.add('hidden');
+  } else {
+    const err = document.getElementById('authError');
+    err.textContent = 'Falsches Passwort.';
+    document.getElementById('authInput').value = '';
+    document.getElementById('authInput').focus();
+    setTimeout(() => { err.textContent = ''; }, 2500);
+  }
+}
 
 // ========== CONFIG ==========
 const WEBHOOK_URL = '/.netlify/functions/chat';
