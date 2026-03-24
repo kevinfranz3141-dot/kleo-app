@@ -100,7 +100,7 @@ exports.handler = async (event) => {
             max_tokens: 1024,
             messages: [{
               role: 'user',
-              content: `Erstelle eine kompakte Zusammenfassung des folgenden Dokuments. Nenne alle Kernzahlen, Prozentsätze, Fristen und wichtigsten Regeln vollständig und präzise. Schreibe nur die Zusammenfassung, keinen einleitenden Satz.\n\n${doc_text.substring(0, 3000)}`,
+              content: `Erstelle eine strukturierte Zusammenfassung des folgenden Dokuments. Decke dabei alle folgenden Punkte ab, sofern im Dokument vorhanden:\n\n1. Fördersätze & Beträge: Alle Prozentsätze, Eurobeträge, Obergrenzen und Boni mit exakten Zahlen.\n2. Antragsberechtigte: Wer darf den Antrag stellen? (z.B. Privatpersonen, Unternehmen, Vermieter, WEG)\n3. Ausschlüsse: Wer ist explizit nicht antragsberechtigt? Welche Maßnahmen oder Gebäude sind ausgeschlossen?\n4. Wichtige Einschränkungen & Bedingungen: Voraussetzungen, die erfüllt sein müssen (z.B. Energieberater-Pflicht, Antrag vor Baubeginn, Gebäudealter).\n5. Fristen & Termine: Alle relevanten Deadlines.\n6. Kombinierbarkeit: Mit welchen anderen Programmen kombinierbar oder nicht kombinierbar?\n\nSchreibe nur die Zusammenfassung ohne einleitenden Satz. Nenne Zahlen und Regeln exakt wie im Dokument.\n\n${doc_text.substring(0, 3000)}`,
             }],
           }),
         });
