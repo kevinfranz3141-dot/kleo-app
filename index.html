@@ -1532,9 +1532,9 @@ body {
         <span class="doc-count" id="docCountBadge">0</span>
       </button>
       <div class="sidebar-user">
-        <div class="sidebar-user-avatar">MR</div>
+        <div class="sidebar-user-avatar" id="sidebarUserAvatar">ME</div>
         <div>
-          <div class="sidebar-user-name">M&R Energieoptimierung</div>
+          <div class="sidebar-user-name" id="sidebarUserName">Mein Energiebüro</div>
           <div class="sidebar-user-plan">KLEO Pro</div>
         </div>
       </div>
@@ -1738,6 +1738,22 @@ async function submitAuth() {
     setTimeout(() => { err.textContent = ''; }, 2500);
   }
 }
+
+// ========== KUNDENNAME (URL-Parameter ?kunde=) ==========
+const KUNDENNAME = (() => {
+  const raw = new URLSearchParams(window.location.search).get('kunde');
+  if (raw && raw.trim()) return raw.trim();
+  return 'Mein Energiebüro';
+})();
+
+function kundenInitials(name) {
+  const words = name.split(/[\s\-_]+/).filter(w => w.length > 0);
+  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+  return name.substring(0, 2).toUpperCase();
+}
+
+document.getElementById('sidebarUserName').textContent = KUNDENNAME;
+document.getElementById('sidebarUserAvatar').textContent = kundenInitials(KUNDENNAME);
 
 // ========== CONFIG ==========
 const WEBHOOK_URL = '/.netlify/functions/chat';
@@ -2163,7 +2179,7 @@ function getFallbackData(q) {
     sources = [{ title: 'KfW-Merkblatt Antragstellung', pages: [2] }];
   } else if (l.includes('fenster') || l.includes('kunde') || l.includes('kommunikation')) {
     answer = '<strong>Entwurf Kundenantwort – Fenstertausch Förderung:</strong>\n\n„Guten Tag Herr/Frau [Name],\n\nfür den Austausch Ihrer Fenster können Sie eine Förderung über das BAFA-Programm BEG Einzelmaßnahmen (Gebäudehülle) beantragen.\n\n→ Grundförderung: <strong>15%</strong> der förderfähigen Kosten\n→ Mit iSFP-Bonus: <strong>+5%</strong> (gesamt 20%)\n→ Förderfähige Kosten: max. 30.000 € pro Wohneinheit\n\nWichtig: Der Antrag muss vor der Auftragsvergabe an den Handwerker gestellt werden.\n\nIch übernehme die Antragstellung gerne für Sie."';
-    sources = [{ title: 'BEG Einzelmaßnahmen Merkblatt', pages: [8] }, { title: 'M&R Interne Checklisten', pages: [2] }];
+    sources = [{ title: 'BEG Einzelmaßnahmen Merkblatt', pages: [8] }, { title: KUNDENNAME + ' – Interne Checklisten', pages: [2] }];
   } else {
     answer = 'Vielen Dank für Ihre Frage. In der Demo-Version antworte ich auf Basis vordefinierter Beispiele.\n\nIm vollständigen System durchsuche ich Ihre gesamte Dokumentenbasis und antworte mit exakter Quellenangabe.\n\n<strong>Probieren Sie z.B.:</strong>\n→ „Welche Förderung gibt es für eine Wärmepumpe im Altbau?"\n→ „Gilt der iSFP-Bonus bei KfW 458?"\n→ „Was muss ich beim Antragszeitpunkt beachten?"\n→ „Erstelle eine Kundenantwort zur Förderhöhe bei Fenstertausch"';
     sources = [];
