@@ -163,6 +163,7 @@ exports.handler = async (event) => {
 
       const rerankResponse = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
+        signal: AbortSignal.timeout(5000),
         headers: {
           "x-api-key": ANTHROPIC_KEY,
           "anthropic-version": "2023-06-01",

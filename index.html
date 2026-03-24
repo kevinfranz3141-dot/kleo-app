@@ -1596,7 +1596,19 @@ async function sendMessage() {
     const data = await res.json();
     document.getElementById(typingId)?.remove();
 
-    const answer = data.answer || data.text || '';
+    if (data.error || !data.answer) {
+      console.error('[chat] Function error:', data.error || 'no answer field');
+      const errMsg = 'Es ist ein Fehler aufgetreten. Bitte versuche es erneut.';
+      area.innerHTML += createKleoMsg(errMsg, []);
+      addMessageToChat('kleo', errMsg, []);
+      isLoading = false;
+      document.getElementById('sendBtn').disabled = false;
+      input.focus();
+      area.scrollTop = area.scrollHeight;
+      return;
+    }
+
+    const answer = data.answer;
     const sources = data.sources || [];
     area.innerHTML += createKleoMsg(answer, sources);
     addMessageToChat('kleo', answer, sources);
