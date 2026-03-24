@@ -151,70 +151,8 @@ exports.handler = async (event) => {
       }
     }
 
-    // Step 4: Rerank — Claude Haiku selects the 10 most relevant chunks from the 20 candidates
-    const fallbackIndices = [...Array(Math.min(10, candidates.length)).keys()];
-    let selectedIndices = fallbackIndices;
-
-    try {
-      const rerankList = candidates.map((c, i) => {
-        const title = docTitles[c.document_id] || "Dokument";
-        return "[" + i + "] [" + title + " | Seite " + (c.page_number || "?") + "]\n" + c.content.substring(0, 400);
-      }).join("\n\n---\n\n");
-
-      const rerankResponse = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        signal: AbortSignal.timeout(5000),
-        headers: {
-          "x-api-key": ANTHROPIC_KEY,
-          "anthropic-version": "2023-06-01",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 100,
-          messages: [{
-            role: "user",
-            content: "Frage: \"" + question + "\"\n\nWähle die 10 relevantesten Chunk-Indizes (0–" + (candidates.length - 1) + ") aus den folgenden Chunks für diese Frage. Antworte NUR mit einem JSON-Array von 10 Zahlen, z.B. [0,3,5,7,8,11,13,15,17,19]. Kein Text davor oder danach.\n\n" + rerankList
-          }]
-        })
-      });
-
-      if (!rerankResponse.ok) {
-        const errText = await rerankResponse.text();
-        console.error("[rerank] Haiku HTTP error:", rerankResponse.status, errText);
-      } else {
-        const rerankData = await rerankResponse.json();
-        console.log("[rerank] Haiku raw response:", JSON.stringify(rerankData));
-
-        if (rerankData.error) {
-          console.error("[rerank] Haiku API error:", rerankData.error.type, rerankData.error.message);
-        } else {
-          const rawText = rerankData.content?.[0]?.text || "";
-          console.log("[rerank] Haiku text:", rawText);
-
-          const match = rawText.match(/\[[\d,\s]+\]/);
-          if (!match) {
-            console.error("[rerank] No JSON array found in Haiku response, using fallback");
-          } else {
-            const parsed = JSON.parse(match[0])
-              .filter(i => Number.isInteger(i) && i >= 0 && i < candidates.length);
-            console.log("[rerank] Parsed indices:", parsed);
-
-            if (parsed.length === 0) {
-              console.error("[rerank] Parsed indices empty, using fallback");
-            } else {
-              selectedIndices = parsed.slice(0, 10);
-            }
-          }
-        }
-      }
-    } catch (rerankErr) {
-      console.error("[rerank] Unexpected error:", rerankErr.message);
-      // selectedIndices already set to fallbackIndices
-    }
-
-    console.log("[rerank] Final indices used:", selectedIndices);
-    const chunks = selectedIndices.map(i => candidates[i]);
+    // Step 4: Use top 10 candidates by similarity score (reranking disabled)
+    const chunks = candidates.slice(0, 10);
 
     // Step 5: Build context from the 10 reranked chunks
     const context = chunks.map(c => {
