@@ -414,6 +414,84 @@ body {
 
 .header-action-btn:hover { background: var(--bg-card-hover); color: var(--text-primary); }
 .header-action-btn svg { width: 16px; height: 16px; }
+.header-action-btn.privacy-active { background: rgba(74,140,92,0.12); color: var(--leaf); border-color: rgba(74,140,92,0.2); }
+
+/* Privacy panel */
+.privacy-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(2px);
+}
+.privacy-overlay.visible { display: flex; align-items: center; justify-content: center; }
+.privacy-panel {
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border-primary);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 420px;
+  margin: 16px;
+  padding: 28px 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.3);
+}
+.privacy-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.privacy-panel-icon {
+  width: 38px; height: 38px;
+  border-radius: 10px;
+  background: rgba(74,140,92,0.12);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--leaf);
+  flex-shrink: 0;
+}
+.privacy-panel-icon svg { width: 18px; height: 18px; }
+.privacy-panel-title {
+  font-family: var(--serif);
+  font-size: 18px;
+  color: var(--text-primary);
+}
+.privacy-panel-close {
+  margin-left: auto;
+  background: none; border: none; cursor: pointer;
+  color: var(--text-tertiary);
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+}
+.privacy-panel-close:hover { color: var(--text-primary); background: var(--bg-card); }
+.privacy-panel-close svg { width: 14px; height: 14px; }
+.privacy-items { display: flex; flex-direction: column; gap: 10px; }
+.privacy-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+.privacy-item-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--leaf);
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+.privacy-panel-footer {
+  font-size: 11px;
+  color: var(--text-hint);
+  border-top: 1px solid var(--border-secondary);
+  padding-top: 14px;
+  line-height: 1.5;
+}
 
 /* Messages area */
 .messages {
@@ -1489,6 +1567,9 @@ body {
         </div>
       </div>
       <div class="main-header-actions">
+        <button class="header-action-btn" onclick="togglePrivacyPanel()" id="privacyBtn" title="Datenschutz & Sicherheit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        </button>
         <button class="header-action-btn" onclick="toggleTheme()" id="themeToggle" title="Hell/Dunkel">
           <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
           <svg class="icon-moon" style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
@@ -1499,12 +1580,36 @@ body {
       </div>
     </div>
 
+    <!-- Privacy Panel -->
+    <div class="privacy-overlay" id="privacyOverlay" onclick="if(event.target===this)closePrivacyPanel()">
+      <div class="privacy-panel">
+        <div class="privacy-panel-header">
+          <div class="privacy-panel-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          </div>
+          <div class="privacy-panel-title">Datenschutz & Sicherheit</div>
+          <button class="privacy-panel-close" onclick="closePrivacyPanel()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="privacy-items">
+          <div class="privacy-item"><div class="privacy-item-dot"></div><span>Deine Fragen werden verschlüsselt an die <strong>Anthropic Claude API</strong> übermittelt, um eine Antwort zu generieren.</span></div>
+          <div class="privacy-item"><div class="privacy-item-dot"></div><span>Zur semantischen Suche erstellt die <strong>OpenAI Embeddings API</strong> Vektoren aus deinen Fragen – keine Inhalte werden gespeichert.</span></div>
+          <div class="privacy-item"><div class="privacy-item-dot"></div><span>Deine Dokumente liegen verschlüsselt in einer <strong>Supabase-Datenbank</strong> (EU-Region) und werden nicht an Dritte weitergegeben.</span></div>
+          <div class="privacy-item"><div class="privacy-item-dot"></div><span>Es werden <strong>keine Gesprächsinhalte</strong> dauerhaft auf Servern gespeichert. Der Chatverlauf verbleibt ausschließlich in deinem Browser.</span></div>
+        </div>
+        <div class="privacy-panel-footer">
+          KLEO verarbeitet ausschließlich die Dokumente, die du selbst hochlädst. Keine Weitergabe an Dritte. Keine Werbung.
+        </div>
+      </div>
+    </div>
+
     <!-- Messages / Welcome -->
     <div class="messages" id="messagesArea">
       <div class="welcome-state" id="welcomeState">
         <div class="welcome-logo">K</div>
-        <h2 class="welcome-title">Fragen Sie K<i>LEO</i></h2>
-        <p class="welcome-sub">Stellen Sie eine Frage zu Förderungen, iSFP, Antragstellung oder Kundenkommunikation. KLEO antwortet auf Basis Ihrer Fachdokumente.</p>
+        <h2 class="welcome-title">Frag K<i>LEO</i></h2>
+        <p class="welcome-sub">Stell deine Frage zu Förderungen, iSFP, Antragstellung oder Kundenkommunikation. KLEO antwortet auf Basis deiner Fachdokumente.</p>
         <div class="welcome-suggestions">
           <button class="suggestion-btn" onclick="askSuggestion('Welche Förderung gibt es für eine Wärmepumpe im Altbau?')">
             <span class="suggestion-icon">🔍</span>
@@ -1536,7 +1641,9 @@ body {
           </button>
         </div>
       </div>
-      <div class="input-hint">KLEO antwortet ausschließlich auf Basis Ihrer hochgeladenen Dokumente.</div>
+      <div class="input-hint">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px;vertical-align:middle;margin-right:4px;opacity:0.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Deine Daten bleiben sicher · KLEO antwortet ausschließlich auf Basis deiner hochgeladenen Dokumente
+      </div>
     </div>
   </main>
 
@@ -1644,6 +1751,23 @@ const CHUNK_OVERLAP = 200;
 const BATCH_SIZE = 8; // Chunks pro Netlify-Request (sicher unter 10s Timeout)
 
 // ========== THEME ==========
+function togglePrivacyPanel() {
+  const overlay = document.getElementById('privacyOverlay');
+  const btn = document.getElementById('privacyBtn');
+  const isVisible = overlay.classList.contains('visible');
+  if (isVisible) {
+    closePrivacyPanel();
+  } else {
+    overlay.classList.add('visible');
+    btn.classList.add('privacy-active');
+  }
+}
+
+function closePrivacyPanel() {
+  document.getElementById('privacyOverlay').classList.remove('visible');
+  document.getElementById('privacyBtn').classList.remove('privacy-active');
+}
+
 function toggleTheme() {
   const html = document.documentElement;
   const isDark = html.getAttribute('data-theme') !== 'light';
@@ -2577,8 +2701,8 @@ function showWelcome() {
   const area = document.getElementById('messagesArea');
   area.innerHTML = `<div class="welcome-state" id="welcomeState">
     <div class="welcome-logo">K</div>
-    <h2 class="welcome-title">Fragen Sie K<i>LEO</i></h2>
-    <p class="welcome-sub">Stellen Sie eine Frage zu Förderungen, iSFP, Antragstellung oder Kundenkommunikation. KLEO antwortet auf Basis Ihrer Fachdokumente.</p>
+    <h2 class="welcome-title">Frag K<i>LEO</i></h2>
+    <p class="welcome-sub">Stell deine Frage zu Förderungen, iSFP, Antragstellung oder Kundenkommunikation. KLEO antwortet auf Basis deiner Fachdokumente.</p>
     <div class="welcome-suggestions">
       <button class="suggestion-btn" onclick="askSuggestion('Welche Förderung gibt es für eine Wärmepumpe im Altbau?')">
         <span class="suggestion-icon">🔍</span>
