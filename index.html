@@ -1001,7 +1001,7 @@ body {
 .input-hint {
   text-align: center;
   font-size: 11px;
-  color: var(--text-hint);
+  color: var(--text-tertiary);
   margin-top: 8px;
 }
 
@@ -2181,7 +2181,7 @@ function getFallbackData(q) {
     answer = '<strong>Entwurf Kundenantwort – Fenstertausch Förderung:</strong>\n\n„Guten Tag Herr/Frau [Name],\n\nfür den Austausch Ihrer Fenster können Sie eine Förderung über das BAFA-Programm BEG Einzelmaßnahmen (Gebäudehülle) beantragen.\n\n→ Grundförderung: <strong>15%</strong> der förderfähigen Kosten\n→ Mit iSFP-Bonus: <strong>+5%</strong> (gesamt 20%)\n→ Förderfähige Kosten: max. 30.000 € pro Wohneinheit\n\nWichtig: Der Antrag muss vor der Auftragsvergabe an den Handwerker gestellt werden.\n\nIch übernehme die Antragstellung gerne für Sie."';
     sources = [{ title: 'BEG Einzelmaßnahmen Merkblatt', pages: [8] }, { title: KUNDENNAME + ' – Interne Checklisten', pages: [2] }];
   } else {
-    answer = 'Vielen Dank für Ihre Frage. In der Demo-Version antworte ich auf Basis vordefinierter Beispiele.\n\nIm vollständigen System durchsuche ich Ihre gesamte Dokumentenbasis und antworte mit exakter Quellenangabe.\n\n<strong>Probieren Sie z.B.:</strong>\n→ „Welche Förderung gibt es für eine Wärmepumpe im Altbau?"\n→ „Gilt der iSFP-Bonus bei KfW 458?"\n→ „Was muss ich beim Antragszeitpunkt beachten?"\n→ „Erstelle eine Kundenantwort zur Förderhöhe bei Fenstertausch"';
+    answer = 'Zu dieser Frage habe ich in der Wissensdatenbank keine passenden Informationen gefunden.\n\nLade das entsprechende Dokument hoch, damit ich dir eine fundierte Antwort mit Quellenangabe geben kann.\n\n<strong>Oder probier z.B.:</strong>\n→ „Welche Förderung gibt es für eine Wärmepumpe im Altbau?"\n→ „Gilt der iSFP-Bonus bei KfW 458?"\n→ „Was muss ich beim Antragszeitpunkt beachten?"\n→ „Erstelle eine Kundenantwort zur Förderhöhe bei Fenstertausch"';
     sources = [];
   }
 
@@ -2511,16 +2511,22 @@ function renameDocument(docId, nameEl) {
   input.focus();
   input.select();
 
+  let cancelled = false;
+
+  function restoreLabel(title) {
+    const el = document.createElement('div');
+    el.className = 'doc-name';
+    el.title = 'Doppelklick zum Umbenennen';
+    el.textContent = title;
+    el.ondblclick = () => renameDocument(docId, el);
+    input.replaceWith(el);
+    return el;
+  }
+
   async function saveRename() {
+    if (cancelled) return;
     const newTitle = input.value.trim() || currentTitle;
-    
-    // Zurück zum normalen Element
-    const newNameEl = document.createElement('div');
-    newNameEl.className = 'doc-name';
-    newNameEl.title = 'Doppelklick zum Umbenennen';
-    newNameEl.textContent = newTitle;
-    newNameEl.ondblclick = () => renameDocument(docId, newNameEl);
-    input.replaceWith(newNameEl);
+    const el = restoreLabel(newTitle);
 
     if (newTitle !== currentTitle) {
       try {
@@ -2536,15 +2542,15 @@ function renameDocument(docId, nameEl) {
         });
       } catch (err) {
         console.error('Umbenennen fehlgeschlagen:', err);
-        newNameEl.textContent = currentTitle;
+        el.textContent = currentTitle;
       }
     }
   }
 
   input.addEventListener('blur', saveRename);
   input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-    if (e.key === 'Escape') { input.value = currentTitle; input.blur(); }
+    if (e.key === 'Enter')  { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); cancelled = true; restoreLabel(currentTitle); }
   });
 }
 
