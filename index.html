@@ -2006,10 +2006,17 @@ function openSourcePreview(idx) {
     // Sort excerpts by page number
     const sorted = [...source.excerpts].sort((a, b) => (a.page || 0) - (b.page || 0));
     
-    // Process each excerpt: highlight keywords, preserve verbatim chunk text
+    // Process each excerpt: filter blank lines, highlight keywords, preserve verbatim text
     const processed = sorted.map(ex => {
       if (!ex.text || ex.text.length < 30) return null;
-      const { html, hasHighlights } = highlightRelevantSentences(ex.text, source.answerText || '');
+      // Entferne Leerzeilen und reine Whitespace-Zeilen aus der Anzeige
+      const textToShow = ex.text
+        .split('\n')
+        .filter(line => line.trim().length > 0)
+        .join('\n')
+        .trim();
+      if (textToShow.length < 30) return null;
+      const { html, hasHighlights } = highlightRelevantSentences(textToShow, source.answerText || '');
       return { page: ex.page, html, hasHighlights };
     }).filter(Boolean);
     
@@ -2185,6 +2192,24 @@ function getFallbackData(q) {
   return { answer, sources };
 }
 
+// ========== TEXT NORMALISIERUNG ==========
+// Bereinigt rohen PDF-Text: Stock-Bild-Metadaten, Silbentrennungen, isolierte Sonderzeichen
+function normalizeExtractedText(text) {
+  if (!text) return '';
+  return text
+    // Entferne Stock-Bild-Metadaten-Zeilen (AdobeStock, Shutterstock etc.)
+    .replace(/^[^\n]*\b(AdobeStock|Adobe\s+Stock|Shutterstock|Getty\s+Images?|Depositphotos|iStockphoto?|Fotolia|123rf|Dreamstime)\b[^\n]*$/gim, '')
+    // Führe deutsche Silbentrennungen am Zeilenende zusammen: "Wort-\ntrennung" → "Worttrennung"
+    .replace(/(\w)-\n(\w)/g, '$1$2')
+    // Entferne Zeilen, die nur isolierte Sonderzeichen enthalten (keine Wortzeichen)
+    .replace(/^[^\w\näöüÄÖÜß\d\-]{1,4}$/gm, '')
+    // Entferne einzelne Sonderzeichen-Artefakte auf eigener Zeile
+    .replace(/^\s*[|©®™•·▪▸►→←↑↓★☆°]\s*$/gm, '')
+    // Drei oder mehr aufeinanderfolgende Leerzeilen → eine Leerzeile
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 // ========== PDF TEXT EXTRAKTION (im Browser mit pdf.js) ==========
 async function extractTextFromPDF(file) {
   const arrayBuffer = await file.arrayBuffer();
@@ -2340,7 +2365,11 @@ async function extractTextFromPDF(file) {
   const bestTitle = titleCandidates.slice(0, 3).sort((a, b) => b.length - a.length)[0];
   const title = bestTitle || file.name.replace(/\.pdf$/i, '').replace(/[_-]/g, ' ');
 
-  return { text: fullText, title, numPages, pageTexts, sections: textSections };
+  // Normalisiere extrahierten Text: Stock-Metadaten, Silbentrennungen, Sonderzeichen
+  const normalizedText = normalizeExtractedText(fullText);
+  textSections.forEach(sec => { sec.text = normalizeExtractedText(sec.text); });
+
+  return { text: normalizedText, title, numPages, pageTexts, sections: textSections };
 }
 
 // ========== TEXT CHUNKING (im Browser) ==========
@@ -2351,12 +2380,17 @@ function chunkText(text, pageTexts, sections) {
 
     for (const sec of sections) {
       const prefix = sec.heading ? sec.heading + '\n\n' : '';
-      if (!sec.text && !sec.heading) continue;
+      // Bereinige Abschnittstext: Leerzeilen entfernen, Whitespace normalisieren
+      const secText = (sec.text || '')
+        .replace(/[ \t]{2,}/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+      if (!secText && !sec.heading) continue;
 
       // Section fits in one chunk
-      if ((prefix + sec.text).length <= CHUNK_SIZE) {
+      if ((prefix + secText).length <= CHUNK_SIZE) {
         chunks.push({
-          content: (prefix + sec.text).trim(),
+          content: (prefix + secText).trim(),
           chunk_index: chunks.length,
           page_number: sec.pageNum
         });
@@ -2364,7 +2398,7 @@ function chunkText(text, pageTexts, sections) {
       }
 
       // Section too long: split at paragraph boundaries, prepend heading to each sub-chunk
-      const paragraphs = sec.text.split(/\n\n+/).filter(p => p.trim().length > 30);
+      const paragraphs = secText.split(/\n\n+/).filter(p => p.trim().length > 30);
       let buffer = prefix;
 
       for (const para of paragraphs) {
@@ -2384,14 +2418,13 @@ function chunkText(text, pageTexts, sections) {
   }
 
   // --- Fallback: paragraph-based chunking (no heading info available) ---
-  const cleaned = text
+  const cleaned = normalizeExtractedText(text)
     .replace(/\r\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
     .replace(/[ \t]{2,}/g, ' ')
     .replace(/^.*Seite\s+\d+\s*(von|of)\s*\d+.*$/gim, '')
     .replace(/^.*Bestellnummer:\s*[\d\s]+.*$/gim, '')
     .replace(/^.*Stand:\s*\d{1,2}\/\d{4}.*$/gim, '')
-    .replace(/\n{2,}/g, '\n\n')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 
   const paragraphs = cleaned.split(/\n\n+/).filter(p => p.trim().length > 30);
