@@ -2268,13 +2268,31 @@ async function extractTextFromPDF(file) {
     if (currentGroup.length > 0) lineGroups.push(currentGroup);
 
     // Convert groups to tagged line objects
-    const taggedLines = lineGroups.map(grp => ({
-      text:   grp.map(it => it.str).join(' ').trim(),
-      y:      grp[0].transform[5],
-      height: Math.max(...grp.map(it => it.height || 0)) || grp[0].height || 10,
-      isBold: grp.some(it => /bold/i.test(it.fontName || '')),
-      pageNum: i
-    })).filter(l => l.text.length > 0);
+    const taggedLines = lineGroups.map(grp => {
+      const lineH = Math.max(...grp.map(it => it.height || 0)) || grp[0].height || 10;
+      // Verbinde Items anhand des X-Abstands: kleiner Abstand = Wortfragmente zusammenführen
+      let lineText = '';
+      for (let k = 0; k < grp.length; k++) {
+        const it = grp[k];
+        if (k === 0) { lineText = it.str; continue; }
+        const prev = grp[k - 1];
+        const gap = it.transform[4] - (prev.transform[4] + (prev.width || 0));
+        // Abstand < 20% der Zeilenhöhe → kein Wortabstand (Wortfragment), direkt verbinden
+        lineText += (gap < lineH * 0.2 ? '' : ' ') + it.str;
+      }
+      return {
+        text:   lineText.trim(),
+        y:      grp[0].transform[5],
+        height: lineH,
+        isBold: grp.some(it => /bold/i.test(it.fontName || '')),
+        pageNum: i
+      };
+    }).filter(l => {
+      if (l.text.length === 0) return false;
+      // Entferne Stock-Bild-Metadaten-Zeilen (AdobeStock, Shutterstock etc.)
+      if (/\b(AdobeStock|Adobe\s*Stock|Shutterstock|Getty\s*Images?|Depositphotos|iStockphoto?|Fotolia|123rf|Dreamstime)\b/i.test(l.text)) return false;
+      return true;
+    });
 
     allTaggedLines.push(...taggedLines);
 
@@ -2289,7 +2307,13 @@ async function extractTextFromPDF(file) {
         const prev = taggedLines[j - 1];
         const yGap = prev.y - line.y;
         const lh = prev.height || line.height || 12;
-        pageStr += yGap > lh * 1.8 ? '\n\n' : ' ';
+        const isParaBreak = yGap > lh * 1.8;
+        if (!isParaBreak && pageStr.endsWith('-') && /^[a-zäöüß]/.test(line.text)) {
+          // Silbentrennung am Zeilenende: Bindestrich entfernen, Wort direkt verbinden
+          pageStr = pageStr.slice(0, -1);
+        } else {
+          pageStr += isParaBreak ? '\n\n' : ' ';
+        }
       }
       pageStr += line.text;
     }
@@ -2343,7 +2367,13 @@ async function extractTextFromPDF(file) {
         const prev = sec.lines[j - 1];
         const yGap = prev.y - line.y;
         const lh = prev.height || line.height || 12;
-        text += (line.pageNum !== prev.pageNum || yGap > lh * 1.8) ? '\n\n' : ' ';
+        const isParaBreak = line.pageNum !== prev.pageNum || yGap > lh * 1.8;
+        if (!isParaBreak && text.endsWith('-') && /^[a-zäöüß]/.test(line.text)) {
+          // Silbentrennung am Zeilenende: Bindestrich entfernen, Wort direkt verbinden
+          text = text.slice(0, -1);
+        } else {
+          text += isParaBreak ? '\n\n' : ' ';
+        }
       }
       text += line.text;
     }
