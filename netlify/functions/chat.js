@@ -217,8 +217,9 @@ exports.handler = async (event) => {
         sourceMap[docId] = { title: title, pages: new Set(), excerpts: [] };
       }
       if (c.page_number) sourceMap[docId].pages.add(c.page_number);
-      // Include text excerpt (trimmed to 600 chars per chunk)
-      if (c.content) {
+      // Include text excerpt (verbatim stored chunk text, trimmed to 600 chars)
+      // Skip summary chunks — they are AI-generated, not verbatim document text
+      if (c.content && !c.content.startsWith('[ZUSAMMENFASSUNG]')) {
         sourceMap[docId].excerpts.push({
           page: c.page_number || null,
           text: c.content.substring(0, 600) + (c.content.length > 600 ? "..." : "")

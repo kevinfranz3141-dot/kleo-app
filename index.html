@@ -2006,12 +2006,11 @@ function openSourcePreview(idx) {
     // Sort excerpts by page number
     const sorted = [...source.excerpts].sort((a, b) => (a.page || 0) - (b.page || 0));
     
-    // Process each excerpt: clean, highlight, score
+    // Process each excerpt: highlight keywords, preserve verbatim chunk text
     const processed = sorted.map(ex => {
-      const cleaned = cleanExcerptText(ex.text);
-      if (cleaned.length < 30) return null; // Skip near-empty after cleaning
-      const { html, hasHighlights } = highlightRelevantSentences(cleaned, source.answerText || '');
-      return { page: ex.page, html, hasHighlights, cleaned };
+      if (!ex.text || ex.text.length < 30) return null;
+      const { html, hasHighlights } = highlightRelevantSentences(ex.text, source.answerText || '');
+      return { page: ex.page, html, hasHighlights };
     }).filter(Boolean);
     
     // Show excerpts with highlights first, then others collapsed
@@ -2106,10 +2105,10 @@ function trimToCompleteSentences(text) {
   return trimmed;
 }
 
-// Highlight sentences relevant to the answer
+// Highlight sentences relevant to the answer (verbatim text, no trimming)
 function highlightRelevantSentences(excerptText, answerText) {
-  const cleaned = trimToCompleteSentences(excerptText);
-  if (!answerText || !cleaned) return { html: esc(cleaned), hasHighlights: false };
+  const cleaned = excerptText;
+  if (!answerText || !cleaned) return { html: esc(cleaned || ''), hasHighlights: false };
   
   // Extract significant keywords from the answer (filter HTML, stopwords)
   const stopWords = new Set(['aber','alle','also','andere','anderen','anderem','beim','bereits',
