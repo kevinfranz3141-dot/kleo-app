@@ -154,42 +154,52 @@ exports.handler = async (event) => {
     // Step 4: Use top 10 candidates by similarity score (reranking disabled)
     let chunks = candidates.slice(0, 10);
 
-    // Step 4b: If no BzA/Bestätigung zum Antrag chunk in results, add a second targeted search
-    const hasBzA = chunks.some(c =>
-      c.content && (c.content.includes("BzA") || c.content.includes("Bestätigung zum Antrag"))
-    );
-    if (!hasBzA) {
-      const embResponse2 = await fetch("https://api.openai.com/v1/embeddings", {
+    // Step 4b: Targeted fallback searches for context gaps
+    // Helper: embed a query, search Supabase, append up to `limit` new chunks
+    async function runFallback(query, limit, label) {
+      const er = await fetch("https://api.openai.com/v1/embeddings", {
         method: "POST",
         headers: { "Authorization": "Bearer " + OPENAI_KEY, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "text-embedding-ada-002", input: "BzA Bestätigung zum Antrag Expertin Energieeffizienz registrieren Meine KfW" })
+        body: JSON.stringify({ model: "text-embedding-ada-002", input: query })
       });
-      const embData2 = await embResponse2.json();
-      const searchResponse2 = await fetch(SUPABASE_URL + "/rest/v1/rpc/match_document_chunks", {
+      const ed = await er.json();
+      const sr = await fetch(SUPABASE_URL + "/rest/v1/rpc/match_document_chunks", {
         method: "POST",
         headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY, "Content-Type": "application/json" },
-        body: JSON.stringify({ query_embedding: embData2.data[0].embedding, match_count: 5, match_threshold: 0.2 })
+        body: JSON.stringify({ query_embedding: ed.data[0].embedding, match_count: 5, match_threshold: 0.2 })
       });
-      const candidates2 = await searchResponse2.json();
-      if (Array.isArray(candidates2) && candidates2.length > 0) {
-        // Fetch titles for any new document IDs
-        const existingIds = new Set(chunks.map(c => c.id));
-        const newChunks = candidates2.filter(c => !existingIds.has(c.id));
-        const newDocIds = [...new Set(newChunks.map(c => c.document_id).filter(Boolean))].filter(id => !docTitles[id]);
-        if (newDocIds.length > 0) {
-          const titleRes2 = await fetch(
-            SUPABASE_URL + "/rest/v1/documents?id=in.(" + newDocIds.join(",") + ")&select=id,title",
-            { headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY } }
-          );
-          const titleData2 = await titleRes2.json();
-          if (Array.isArray(titleData2)) titleData2.forEach(d => { docTitles[d.id] = d.title; });
-        }
-        chunks = [...chunks, ...newChunks.slice(0, 3)];
-        console.log("[fallback] Added", newChunks.slice(0, 3).length, "BzA chunks. Final chunk count:", chunks.length);
+      const cands = await sr.json();
+      if (!Array.isArray(cands) || cands.length === 0) return;
+      const existingIds = new Set(chunks.map(c => c.id));
+      const fresh = cands.filter(c => !existingIds.has(c.id));
+      const newDocIds = [...new Set(fresh.map(c => c.document_id).filter(Boolean))].filter(id => !docTitles[id]);
+      if (newDocIds.length > 0) {
+        const tr = await fetch(SUPABASE_URL + "/rest/v1/documents?id=in.(" + newDocIds.join(",") + ")&select=id,title",
+          { headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY } });
+        const td = await tr.json();
+        if (Array.isArray(td)) td.forEach(d => { docTitles[d.id] = d.title; });
       }
+      const toAdd = fresh.slice(0, limit);
+      chunks = [...chunks, ...toAdd];
+      console.log("[fallback:" + label + "] Added", toAdd.length, "chunks. Total:", chunks.length);
     }
 
-    // Step 5: Build context from chunks (10 primary + up to 3 Antragstellung fallback)
+    // Fallback 1: "Das Wichtigste in Kürze" overview (page 2) — contains BzA + Meine KfW steps
+    const hasDasWichtigste = chunks.some(c => c.content && c.content.includes("Das Wichtigste in Kürze"));
+    if (!hasDasWichtigste) {
+      await runFallback("BzA Bestätigung zum Antrag Expertin Energieeffizienz registrieren Meine KfW", 3, "BzA");
+    }
+
+    // Fallback 2: Effizienzbonus with concrete percentage
+    const hasEffizienzbonus = chunks.some(c =>
+      c.content && c.content.includes("Effizienzbonus") &&
+      (c.content.includes("5 %") || c.content.includes("5%") || c.content.includes("5 Prozent"))
+    );
+    if (!hasEffizienzbonus) {
+      await runFallback("Effizienzbonus Wärmepumpe 5 Prozent natürliches Kältemittel", 3, "Effizienzbonus");
+    }
+
+    // Step 5: Build context from chunks (10 primary + up to 6 fallback)
     const context = chunks.map(c => {
       const title = docTitles[c.document_id] || "Dokument";
       return "[" + title + " | Seite " + (c.page_number || "?") + "]\n" + c.content;
