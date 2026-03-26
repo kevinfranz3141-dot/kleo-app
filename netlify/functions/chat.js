@@ -171,10 +171,6 @@ exports.handler = async (event) => {
         body: JSON.stringify({ query_embedding: embData2.data[0].embedding, match_count: 5, match_threshold: 0.2 })
       });
       const candidates2 = await searchResponse2.json();
-      console.log("[fallback] Second search returned", Array.isArray(candidates2) ? candidates2.length : 0, "candidates:");
-      if (Array.isArray(candidates2)) {
-        candidates2.forEach((c, i) => console.log("  [fallback]", i, "| chunk_index:", c.chunk_index, "| page:", c.page_number, "| similarity:", c.similarity, "|", (c.content || "").substring(0, 80)));
-      }
       if (Array.isArray(candidates2) && candidates2.length > 0) {
         // Fetch titles for any new document IDs
         const existingIds = new Set(chunks.map(c => c.id));
@@ -189,7 +185,7 @@ exports.handler = async (event) => {
           if (Array.isArray(titleData2)) titleData2.forEach(d => { docTitles[d.id] = d.title; });
         }
         chunks = [...chunks, ...newChunks.slice(0, 3)];
-        console.log("[fallback] Added", newChunks.slice(0, 3).length, "new chunks (deduped). Final chunk count:", chunks.length);
+        console.log("[fallback] Added", newChunks.slice(0, 3).length, "BzA chunks. Final chunk count:", chunks.length);
       }
     }
 
