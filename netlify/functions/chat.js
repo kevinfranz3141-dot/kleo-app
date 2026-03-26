@@ -154,15 +154,15 @@ exports.handler = async (event) => {
     // Step 4: Use top 10 candidates by similarity score (reranking disabled)
     let chunks = candidates.slice(0, 10);
 
-    // Step 4b: If no "Antragstellung" chunk in results, add a second targeted search
-    const hasAntragstellung = chunks.some(c =>
-      c.content && c.content.includes("Antragstellung")
+    // Step 4b: If no BzA/Bestätigung zum Antrag chunk in results, add a second targeted search
+    const hasBzA = chunks.some(c =>
+      c.content && (c.content.includes("BzA") || c.content.includes("Bestätigung zum Antrag"))
     );
-    if (!hasAntragstellung) {
+    if (!hasBzA) {
       const embResponse2 = await fetch("https://api.openai.com/v1/embeddings", {
         method: "POST",
         headers: { "Authorization": "Bearer " + OPENAI_KEY, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "text-embedding-ada-002", input: "Antragstellung BzA Schritte Zuschuss beantragen" })
+        body: JSON.stringify({ model: "text-embedding-ada-002", input: "BzA Bestätigung zum Antrag Expertin Energieeffizienz registrieren Meine KfW" })
       });
       const embData2 = await embResponse2.json();
       const searchResponse2 = await fetch(SUPABASE_URL + "/rest/v1/rpc/match_document_chunks", {
