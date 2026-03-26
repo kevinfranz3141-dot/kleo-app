@@ -152,9 +152,44 @@ exports.handler = async (event) => {
     }
 
     // Step 4: Use top 10 candidates by similarity score (reranking disabled)
-    const chunks = candidates.slice(0, 10);
+    let chunks = candidates.slice(0, 10);
 
-    // Step 5: Build context from the 10 reranked chunks
+    // Step 4b: If no "Antragstellung" chunk in results, add a second targeted search
+    const hasAntragstellung = chunks.some(c =>
+      c.content && c.content.includes("Antragstellung")
+    );
+    if (!hasAntragstellung) {
+      const embResponse2 = await fetch("https://api.openai.com/v1/embeddings", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + OPENAI_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "text-embedding-ada-002", input: "Antragstellung BzA Schritte Zuschuss beantragen" })
+      });
+      const embData2 = await embResponse2.json();
+      const searchResponse2 = await fetch(SUPABASE_URL + "/rest/v1/rpc/match_document_chunks", {
+        method: "POST",
+        headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ query_embedding: embData2.data[0].embedding, match_count: 5, match_threshold: 0.2 })
+      });
+      const candidates2 = await searchResponse2.json();
+      if (Array.isArray(candidates2) && candidates2.length > 0) {
+        // Fetch titles for any new document IDs
+        const existingIds = new Set(chunks.map(c => c.id));
+        const newChunks = candidates2.filter(c => !existingIds.has(c.id));
+        const newDocIds = [...new Set(newChunks.map(c => c.document_id).filter(Boolean))].filter(id => !docTitles[id]);
+        if (newDocIds.length > 0) {
+          const titleRes2 = await fetch(
+            SUPABASE_URL + "/rest/v1/documents?id=in.(" + newDocIds.join(",") + ")&select=id,title",
+            { headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY } }
+          );
+          const titleData2 = await titleRes2.json();
+          if (Array.isArray(titleData2)) titleData2.forEach(d => { docTitles[d.id] = d.title; });
+        }
+        chunks = [...chunks, ...newChunks.slice(0, 3)];
+        console.log("[answer] Added", newChunks.slice(0, 3).length, "Antragstellung chunks via second search");
+      }
+    }
+
+    // Step 5: Build context from chunks (10 primary + up to 3 Antragstellung fallback)
     const context = chunks.map(c => {
       const title = docTitles[c.document_id] || "Dokument";
       return "[" + title + " | Seite " + (c.page_number || "?") + "]\n" + c.content;
