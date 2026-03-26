@@ -184,9 +184,15 @@ exports.handler = async (event) => {
       console.log("[fallback:" + label + "] Added", toAdd.length, "chunks. Total:", chunks.length);
     }
 
-    // Fallback 1: "Das Wichtigste in Kürze" overview (page 2) — contains BzA + Meine KfW steps
-    const hasDasWichtigste = chunks.some(c => c.content && c.content.includes("Das Wichtigste in Kürze"));
-    if (!hasDasWichtigste) {
+    // Fallback 1: BzA steps (page 2, chunks 9-11) — "Bestätigung zum Antrag" spelled out,
+    // or "BzA" appearing together with "Expertin" (page-5 chunks contain "BzA" alone but not that combo)
+    const hasBzAContext = chunks.some(c =>
+      c.content && (
+        c.content.includes("Bestätigung zum Antrag") ||
+        (c.content.includes("BzA") && c.content.includes("Expertin"))
+      )
+    );
+    if (!hasBzAContext) {
       await runFallback("BzA Bestätigung zum Antrag Expertin Energieeffizienz registrieren Meine KfW", 3, "BzA");
     }
 
