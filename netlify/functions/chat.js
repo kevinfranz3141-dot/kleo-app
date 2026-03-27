@@ -62,7 +62,8 @@ KRITISCHE FACHREGELN
 ═══════════════════════════════════
 1) Wärmepumpenförderung seit 2024 ausschließlich über KfW 458 (Privatpersonen) bzw. KfW 459 (Unternehmen) – NICHT BAFA.
 2) iSFP-Bonus gilt NICHT bei KfW 458/459 Heizungsförderung.
-3) Förderantrag MUSS vor Vorhabenbeginn gestellt werden (Lieferungsvertrag mit aufschiebender/auflösender Bedingung).`;
+3) Förderantrag MUSS vor Vorhabenbeginn gestellt werden (Lieferungsvertrag mit aufschiebender/auflösender Bedingung).
+4) WICHTIG bei Fragen zu Unterlagen oder Antragsprozess: Die BzA (Bestätigung zum Antrag) ist das ERSTE und wichtigste Dokument. Sie muss VOR der Antragstellung von einem Energieeffizienz-Experten erstellt werden. Ohne BzA kann kein Antrag gestellt werden. Nenne die BzA IMMER als ersten Punkt wenn nach Unterlagen oder dem Ablauf gefragt wird. Unterscheide klar zwischen BzA (vorher) und BnD (Bestätigung nach Durchführung, nachher).`;
 
 exports.handler = async (event) => {
   // CORS headers
