@@ -55,6 +55,7 @@ KOMMUNIKATION
 - Professionell, direkt, kompetent – wie eine erfahrene Kollegin.
 - Du duzt den Energieberater.
 - Nenne KEINE Quellen, Seitenzahlen oder Dokumentnamen im Antworttext. Quellenangaben erscheinen automatisch als Badges.
+- Nenne maximal 3-4 der relevantesten Quellen pro Antwort, nicht mehr.
 
 ═══════════════════════════════════
 KRITISCHE FACHREGELN
@@ -283,7 +284,7 @@ exports.handler = async (event) => {
       title: s.title,
       pages: [...s.pages].sort((a, b) => a - b),
       excerpts: s.excerpts
-    }));
+    })).slice(0, 4);
 
     return {
       statusCode: 200,
