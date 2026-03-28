@@ -18,7 +18,7 @@
   --serif: 'DM Serif Display', Georgia, serif;
   --sans: 'DM Sans', system-ui, sans-serif;
   --sidebar-w: 280px;
-  --docs-w: 300px;
+  --docs-w: 360px;
 
   /* Dark theme (default) */
   --bg-app: #0D1B2A;
@@ -34,7 +34,7 @@
   --text-primary: #FFFFFF;
   --text-secondary: rgba(255,255,255,0.6);
   --text-tertiary: rgba(255,255,255,0.3);
-  --text-hint: rgba(255,255,255,0.15);
+  --text-hint: rgba(255,255,255,0.35);
   --text-bubble-kleo: rgba(255,255,255,0.88);
   --border-primary: rgba(255,255,255,0.08);
   --border-secondary: rgba(255,255,255,0.06);
@@ -61,7 +61,7 @@
   --text-primary: #0D1B2A;
   --text-secondary: rgba(13,27,42,0.6);
   --text-tertiary: rgba(13,27,42,0.35);
-  --text-hint: rgba(13,27,42,0.15);
+  --text-hint: rgba(13,27,42,0.35);
   --text-bubble-kleo: #0D1B2A;
   --border-primary: rgba(0,0,0,0.1);
   --border-secondary: rgba(0,0,0,0.06);
@@ -1593,9 +1593,9 @@ body {
           </button>
         </div>
         <div class="privacy-items">
-          <div class="privacy-item"><div class="privacy-item-dot"></div><span>Deine Fragen werden verschlüsselt an die <strong>Anthropic Claude API</strong> übermittelt, um eine Antwort zu generieren.</span></div>
-          <div class="privacy-item"><div class="privacy-item-dot"></div><span>Zur semantischen Suche erstellt die <strong>OpenAI Embeddings API</strong> Vektoren aus deinen Fragen – keine Inhalte werden gespeichert.</span></div>
-          <div class="privacy-item"><div class="privacy-item-dot"></div><span>Deine Dokumente liegen verschlüsselt in einer <strong>Supabase-Datenbank</strong> (EU-Region) und werden nicht an Dritte weitergegeben.</span></div>
+          <div class="privacy-item"><div class="privacy-item-dot"></div><span>Deine Fragen werden verschlüsselt an die <strong>KLEO-KI</strong> übermittelt, um eine Antwort aus der Wissensdatenbank zu generieren.</span></div>
+          <div class="privacy-item"><div class="privacy-item-dot"></div><span>Zur semantischen Suche nutzt KLEO <strong>eine sichere Embedding-Schnittstelle</strong> – keine Inhalte werden gespeichert.</span></div>
+          <div class="privacy-item"><div class="privacy-item-dot"></div><span>Deine Dokumente liegen verschlüsselt in <strong>einer deutschen Datenbank</strong> (Standort Frankfurt) und werden nicht an Dritte weitergegeben.</span></div>
           <div class="privacy-item"><div class="privacy-item-dot"></div><span>Es werden <strong>keine Gesprächsinhalte</strong> dauerhaft auf Servern gespeichert. Der Chatverlauf verbleibt ausschließlich in deinem Browser.</span></div>
         </div>
         <div class="privacy-panel-footer">
@@ -1833,10 +1833,13 @@ async function sendMessage() {
     createNewChatEntry(q);
   }
 
+  // Chat-ID fixieren, damit die Antwort immer dem richtigen Chat zugeordnet wird
+  const originChatId = currentChatId;
+
   const area = document.getElementById('messagesArea');
 
   area.innerHTML += createUserMsg(q);
-  addMessageToChat('user', q);
+  addMessageToChat('user', q, [], originChatId);
   input.value = '';
   input.style.height = 'auto';
   document.getElementById('sendBtn').disabled = true;
@@ -1849,9 +1852,22 @@ async function sendMessage() {
   </div>`;
   area.scrollTop = area.scrollHeight;
 
+  // Helper: Antwort dem richtigen Chat zuordnen und ggf. UI updaten
+  function appendResponse(html, role, content, sources) {
+    addMessageToChat(role, content, sources, originChatId);
+    if (currentChatId === originChatId) {
+      document.getElementById(typingId)?.remove();
+      document.getElementById('messagesArea').innerHTML += html;
+      document.getElementById('messagesArea').scrollTop = document.getElementById('messagesArea').scrollHeight;
+    } else {
+      // Antwort kam rein, aber User ist in anderem Chat – typing entfernen falls noch sichtbar
+      document.getElementById(typingId)?.remove();
+    }
+  }
+
   try {
     // Build conversation history from current chat (last 3 exchanges = 6 messages)
-    const chat = getCurrentChat();
+    const chat = chats.find(c => c.id === originChatId);
     const history = [];
     if (chat && chat.messages.length > 0) {
       const recent = chat.messages.slice(-6); // last 6 messages max
@@ -1869,35 +1885,28 @@ async function sendMessage() {
       body: JSON.stringify({ question: q, session_id: getSession(), conversation_history: history })
     });
     const data = await res.json();
-    document.getElementById(typingId)?.remove();
 
     if (data.error || !data.answer) {
       console.error('[chat] Function error:', data.error || 'no answer field');
       const errMsg = 'Es ist ein Fehler aufgetreten. Bitte versuche es erneut.';
-      area.innerHTML += createKleoMsg(errMsg, []);
-      addMessageToChat('kleo', errMsg, []);
+      appendResponse(createKleoMsg(errMsg, []), 'kleo', errMsg, []);
       isLoading = false;
       document.getElementById('sendBtn').disabled = false;
       input.focus();
-      area.scrollTop = area.scrollHeight;
       return;
     }
 
     const answer = data.answer;
     const sources = data.sources || [];
-    area.innerHTML += createKleoMsg(answer, sources);
-    addMessageToChat('kleo', answer, sources);
+    appendResponse(createKleoMsg(answer, sources), 'kleo', answer, sources);
   } catch (err) {
-    document.getElementById(typingId)?.remove();
     const fallbackQ = getFallbackData(q);
-    area.innerHTML += createKleoMsg(fallbackQ.answer, fallbackQ.sources);
-    addMessageToChat('kleo', fallbackQ.answer, fallbackQ.sources);
+    appendResponse(createKleoMsg(fallbackQ.answer, fallbackQ.sources), 'kleo', fallbackQ.answer, fallbackQ.sources);
   }
 
   isLoading = false;
   document.getElementById('sendBtn').disabled = false;
   input.focus();
-  area.scrollTop = area.scrollHeight;
 }
 
 function askSuggestion(q) {
@@ -2546,9 +2555,9 @@ async function loadDocuments() {
         <div class="doc-icon">PDF</div>
         <div class="doc-info">
           <div class="doc-name" title="Doppelklick zum Umbenennen" ondblclick="renameDocument('${doc.id}', this)">${esc(doc.title)}</div>
-          <div class="doc-meta">${count} Chunks · ${date}</div>
+          <div class="doc-meta">${date}</div>
         </div>
-        <span class="doc-chunks">${count}</span>
+        <span class="doc-chunks">Aktiv</span>
         <button class="doc-delete-btn" onclick="deleteDocument('${doc.id}', this)" title="Entfernen">✕</button>
       </div>`;
     }).join('');
@@ -2728,8 +2737,8 @@ function getCurrentChat() {
   return chats.find(c => c.id === currentChatId);
 }
 
-function addMessageToChat(role, content, sources) {
-  const chat = getCurrentChat();
+function addMessageToChat(role, content, sources, targetChatId) {
+  const chat = targetChatId ? chats.find(c => c.id === targetChatId) : getCurrentChat();
   if (!chat) return;
   chat.messages.push({ role, content, sources: sources || [] });
   chat.updated = Date.now();
