@@ -1511,6 +1511,17 @@ body {
   white-space: nowrap;
 }
 .beta-banner a:hover { text-decoration: underline; }
+.beta-banner-close {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  margin-left: 4px;
+}
+.beta-banner-close:hover { color: var(--text-primary); }
 
 /* Beta expired overlay */
 #betaExpiredOverlay {
@@ -1572,6 +1583,16 @@ body {
   cursor: pointer;
   text-decoration: underline;
 }
+.beta-expired-email {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+.beta-expired-email a {
+  color: var(--text-secondary);
+  text-decoration: underline;
+}
+.beta-expired-email a:hover { color: var(--leaf); }
 .beta-expired-logout:hover { color: var(--text-secondary); }
 
 /* Survey overlay */
@@ -1823,7 +1844,8 @@ body {
       Vielen Dank, dass du KLEO getestet hast! Dein Beta-Zugang ist abgelaufen.<br><br>
       Interesse an KLEO Pro? Lass uns kurz sprechen.
     </div>
-    <a class="beta-expired-cta" href="mailto:kevin@franz-ug.de?subject=KLEO%20Pro%20–%20Interesse">Gespräch vereinbaren</a>
+    <a class="beta-expired-cta" href="https://calendly.com/kevinfranz-ug" target="_blank">Gespräch vereinbaren</a>
+    <div class="beta-expired-email">Oder direkt per E-Mail: <a href="mailto:kevin@franz-ug.de">kevin@franz-ug.de</a></div>
     <button class="beta-expired-logout" onclick="logoutTenant()">Anderes Konto nutzen</button>
   </div>
 </div>
@@ -1886,7 +1908,8 @@ body {
     <!-- Beta grace banner -->
     <div class="beta-banner" id="betaBanner">
       <span id="betaBannerText"></span>
-      <a href="mailto:kevin@franz-ug.de?subject=KLEO%20Pro%20–%20Interesse" id="betaBannerLink">Gespräch vereinbaren &rarr;</a>
+      <a href="https://calendly.com/kevinfranz-ug" target="_blank" id="betaBannerLink">Gespräch vereinbaren &rarr;</a>
+      <button class="beta-banner-close" onclick="this.parentElement.classList.remove('visible')" title="Schließen">&times;</button>
     </div>
 
     <!-- Mobile topbar -->
@@ -2090,9 +2113,6 @@ function getBetaEndDate() {
 }
 
 function applyBetaPhase() {
-  const _startStr = sessionStorage.getItem('kleo_beta_start');
-  const _days = _startStr ? Math.floor((new Date() - new Date(_startStr)) / (1000*60*60*24)) : 'NULL';
-  alert('Phase: ' + getBetaPhase() + ' | Days: ' + _days + ' | beta_start: ' + (_startStr || 'NOT SET'));
   const phase = getBetaPhase();
   const banner = document.getElementById('betaBanner');
   const expiredOverlay = document.getElementById('betaExpiredOverlay');
@@ -2304,12 +2324,7 @@ async function submitAuth() {
 }
 
 function logoutTenant() {
-  sessionStorage.removeItem('kleo_auth');
-  sessionStorage.removeItem('kleo_tenant_id');
-  sessionStorage.removeItem('kleo_tenant_name');
-  sessionStorage.removeItem('kleo_beta_start');
-  sessionStorage.removeItem('kleo_survey1_done');
-  sessionStorage.removeItem('kleo_survey2_done');
+  sessionStorage.clear();
   window.location.reload();
 }
 
