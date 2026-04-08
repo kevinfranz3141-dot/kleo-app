@@ -1488,9 +1488,109 @@ body {
   color: var(--danger);
   min-height: 18px;
 }
+
+/* Beta grace banner */
+.beta-banner {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, rgba(45,90,61,0.12), rgba(74,140,92,0.10));
+  border-bottom: 1px solid rgba(74,140,92,0.18);
+  font-family: var(--sans);
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.beta-banner.visible { display: flex; }
+.beta-banner a {
+  color: var(--leaf);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.beta-banner a:hover { text-decoration: underline; }
+
+/* Beta expired overlay */
+#betaExpiredOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: var(--bg-app);
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+#betaExpiredOverlay.visible { display: flex; }
+.beta-expired-box {
+  width: 100%;
+  max-width: 400px;
+  padding: 48px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+.beta-expired-box .auth-logo { margin-bottom: 8px; }
+.beta-expired-title {
+  font-family: var(--serif);
+  font-size: 24px;
+  color: var(--text-primary);
+}
+.beta-expired-text {
+  font-family: var(--sans);
+  font-size: 15px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  max-width: 340px;
+}
+.beta-expired-cta {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 13px 32px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, var(--sage), var(--leaf));
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+.beta-expired-cta:hover { opacity: 0.88; }
+.beta-expired-logout {
+  margin-top: 4px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--text-tertiary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.beta-expired-logout:hover { color: var(--text-secondary); }
 </style>
 </head>
 <body>
+
+<!-- ========== AUTH OVERLAY ========== -->
+<!-- ========== BETA EXPIRED OVERLAY ========== -->
+<div id="betaExpiredOverlay">
+  <div class="beta-expired-box">
+    <div class="auth-logo">K</div>
+    <div class="beta-expired-title">Beta-Phase beendet</div>
+    <div class="beta-expired-text">
+      Vielen Dank, dass du KLEO getestet hast! Dein Beta-Zugang ist abgelaufen.<br><br>
+      Interesse an KLEO Pro? Lass uns kurz sprechen.
+    </div>
+    <a class="beta-expired-cta" href="mailto:kevin@franz-ug.de?subject=KLEO%20Pro%20–%20Interesse">Gespräch vereinbaren</a>
+    <button class="beta-expired-logout" onclick="logoutTenant()">Anderes Konto nutzen</button>
+  </div>
+</div>
 
 <!-- ========== AUTH OVERLAY ========== -->
 <div id="authOverlay">
@@ -1546,6 +1646,12 @@ body {
 
   <!-- MAIN -->
   <main class="main">
+
+    <!-- Beta grace banner -->
+    <div class="beta-banner" id="betaBanner">
+      <span id="betaBannerText"></span>
+      <a href="mailto:kevin@franz-ug.de?subject=KLEO%20Pro%20–%20Interesse" id="betaBannerLink">Gespräch vereinbaren &rarr;</a>
+    </div>
 
     <!-- Mobile topbar -->
     <div class="mobile-topbar">
@@ -1724,10 +1830,63 @@ function updateTenantUI() {
   document.getElementById('sidebarUserAvatar').textContent = kundenInitials(name);
 }
 
+// ========== BETA PHASE LOGIC ==========
+function getBetaPhase() {
+  const startStr = sessionStorage.getItem('kleo_beta_start');
+  if (!startStr) return 'active'; // Kein Beta-Datum = Pilotkunde, kein Timer
+  const start = new Date(startStr);
+  const now = new Date();
+  const daysSinceStart = Math.floor((now - start) / (1000 * 60 * 60 * 24)) + 1; // Tag 1 = Starttag
+  if (daysSinceStart <= 6) return 'active';
+  if (daysSinceStart === 7) return 'survey1';
+  if (daysSinceStart <= 13) return 'testing';
+  if (daysSinceStart === 14) return 'survey2';
+  if (daysSinceStart <= 17) return 'grace';
+  return 'expired';
+}
+
+function getBetaEndDate() {
+  const startStr = sessionStorage.getItem('kleo_beta_start');
+  if (!startStr) return null;
+  const end = new Date(startStr);
+  end.setDate(end.getDate() + 17); // Tag 18 = expired, also Tag 17 = letzter Tag
+  return end;
+}
+
+function applyBetaPhase() {
+  const phase = getBetaPhase();
+  const banner = document.getElementById('betaBanner');
+  const expiredOverlay = document.getElementById('betaExpiredOverlay');
+
+  // Reset
+  banner.classList.remove('visible');
+  expiredOverlay.classList.remove('visible');
+
+  if (phase === 'grace') {
+    const endDate = getBetaEndDate();
+    const formatted = endDate ? endDate.toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
+    document.getElementById('betaBannerText').textContent = `Dein Beta-Zugang endet am ${formatted}. Weiter mit KLEO Pro?`;
+    banner.classList.add('visible');
+  }
+
+  if (phase === 'expired') {
+    expiredOverlay.classList.add('visible');
+  }
+
+  // survey1 / survey2: Overlays werden in Session 4 gebaut.
+  // Hier nur loggen, damit wir's sehen.
+  if (phase === 'survey1' || phase === 'survey2') {
+    console.log(`[beta] Phase: ${phase} – Fragebogen-Overlay wird in Session 4 implementiert.`);
+  }
+
+  return phase;
+}
+
 (async () => {
   if (sessionStorage.getItem('kleo_auth') === '1' && getTenantId()) {
     document.getElementById('authOverlay').classList.add('hidden');
     updateTenantUI();
+    applyBetaPhase();
   } else {
     // Prüfe ob Slug in URL steckt (Kompatibilität)
     const urlSlug = new URLSearchParams(window.location.search).get('kunde');
@@ -1753,7 +1912,7 @@ async function submitAuth() {
 
   try {
     // Tenant in Supabase suchen
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/tenants?slug=eq.${encodeURIComponent(slug)}&select=id,name,password`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/tenants?slug=eq.${encodeURIComponent(slug)}&select=id,name,password,beta_start_date`, {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
     });
     const tenants = await res.json();
@@ -1778,8 +1937,14 @@ async function submitAuth() {
     sessionStorage.setItem('kleo_auth', '1');
     sessionStorage.setItem('kleo_tenant_id', tenant.id);
     sessionStorage.setItem('kleo_tenant_name', tenant.name);
+    if (tenant.beta_start_date) {
+      sessionStorage.setItem('kleo_beta_start', tenant.beta_start_date);
+    } else {
+      sessionStorage.removeItem('kleo_beta_start');
+    }
     document.getElementById('authOverlay').classList.add('hidden');
     updateTenantUI();
+    applyBetaPhase();
     loadDocuments();
   } catch (err) {
     errEl.textContent = 'Verbindungsfehler. Bitte erneut versuchen.';
@@ -1791,6 +1956,7 @@ function logoutTenant() {
   sessionStorage.removeItem('kleo_auth');
   sessionStorage.removeItem('kleo_tenant_id');
   sessionStorage.removeItem('kleo_tenant_name');
+  sessionStorage.removeItem('kleo_beta_start');
   window.location.reload();
 }
 
