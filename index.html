@@ -1573,11 +1573,247 @@ body {
   text-decoration: underline;
 }
 .beta-expired-logout:hover { color: var(--text-secondary); }
+
+/* Survey overlay */
+.survey-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(2px);
+}
+.survey-overlay.visible { display: flex; align-items: center; justify-content: center; }
+.survey-panel {
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border-primary);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 440px;
+  margin: 16px;
+  padding: 32px 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.35);
+}
+.survey-title {
+  font-family: var(--serif);
+  font-size: 20px;
+  color: var(--text-primary);
+}
+.survey-subtitle {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: -14px;
+}
+.survey-question {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.survey-question-label {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.survey-options {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.survey-opt-btn {
+  padding: 9px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border-input);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  font-family: var(--sans);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.survey-opt-btn:hover { border-color: rgba(74,140,92,0.35); color: var(--text-primary); }
+.survey-opt-btn.selected {
+  background: rgba(74,140,92,0.15);
+  border-color: var(--leaf);
+  color: var(--leaf);
+  font-weight: 500;
+}
+.survey-text-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.survey-textarea {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--text-primary);
+  resize: none;
+  min-height: 40px;
+  max-height: 80px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.survey-textarea:focus { border-color: rgba(74,140,92,0.5); }
+.survey-textarea::placeholder { color: var(--text-hint); }
+.survey-skip {
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--text-tertiary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  padding: 10px 4px;
+}
+.survey-skip:hover { color: var(--text-secondary); }
+.survey-conditional {
+  display: none;
+  margin-top: 4px;
+}
+.survey-conditional.visible { display: block; }
+.survey-submit-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+.survey-submit-btn {
+  padding: 12px 32px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, var(--sage), var(--leaf));
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.survey-submit-btn:hover { opacity: 0.88; }
+.survey-submit-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.survey-thanks {
+  display: none;
+  text-align: center;
+  padding: 24px 0;
+}
+.survey-thanks.visible { display: block; }
+.survey-thanks-icon {
+  font-size: 36px;
+  margin-bottom: 12px;
+}
+.survey-thanks-text {
+  font-family: var(--sans);
+  font-size: 15px;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+.survey-form { display: flex; flex-direction: column; gap: 22px; }
+.survey-form.hidden { display: none; }
 </style>
 </head>
 <body>
 
-<!-- ========== AUTH OVERLAY ========== -->
+<!-- ========== SURVEY 1 OVERLAY (Tag 7) ========== -->
+<div class="survey-overlay" id="survey1Overlay">
+  <div class="survey-panel">
+    <div class="survey-title">Kurzes Feedback</div>
+    <div class="survey-subtitle">Dauert 20 Sekunden</div>
+    <div class="survey-form" id="survey1Form">
+
+      <div class="survey-question">
+        <div class="survey-question-label">Wie hilfreich war KLEO bisher?</div>
+        <div class="survey-options" data-survey="1" data-key="helpful">
+          <button class="survey-opt-btn" onclick="selectSurveyOpt(this)">Sehr hilfreich</button>
+          <button class="survey-opt-btn" onclick="selectSurveyOpt(this)">Ganz okay</button>
+          <button class="survey-opt-btn" onclick="selectSurveyOpt(this)">Noch nicht überzeugend</button>
+        </div>
+      </div>
+
+      <div class="survey-question">
+        <div class="survey-question-label">War eine Antwort dabei, die nicht gestimmt hat?</div>
+        <div class="survey-options" data-survey="1" data-key="wrong_answer">
+          <button class="survey-opt-btn" onclick="selectSurveyOpt(this); showConditional('s1WrongDetail')">Ja</button>
+          <button class="survey-opt-btn" onclick="selectSurveyOpt(this); hideConditional('s1WrongDetail')">Nein</button>
+        </div>
+        <div class="survey-conditional" id="s1WrongDetail">
+          <textarea class="survey-textarea" data-survey="1" data-key="wrong_detail" placeholder="Was war falsch? (optional)" rows="2"></textarea>
+        </div>
+      </div>
+
+      <div class="survey-question">
+        <div class="survey-question-label">Fehlt dir ein Thema oder Dokument?</div>
+        <div class="survey-text-row">
+          <textarea class="survey-textarea" data-survey="1" data-key="missing_topic" placeholder="z.B. BAFA Wärmenetze..." rows="2"></textarea>
+          <button class="survey-skip" onclick="skipSurveyField(this)">Überspringen</button>
+        </div>
+      </div>
+
+      <div class="survey-submit-row">
+        <button class="survey-submit-btn" id="survey1Submit" disabled onclick="submitSurvey(1)">Absenden</button>
+      </div>
+    </div>
+    <div class="survey-thanks" id="survey1Thanks">
+      <div class="survey-thanks-icon">&#10003;</div>
+      <div class="survey-thanks-text">Danke für dein Feedback!</div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SURVEY 2 OVERLAY (Tag 14) ========== -->
+<div class="survey-overlay" id="survey2Overlay">
+  <div class="survey-panel">
+    <div class="survey-title">Letztes Feedback</div>
+    <div class="survey-subtitle">Fast geschafft!</div>
+    <div class="survey-form" id="survey2Form">
+
+      <div class="survey-question">
+        <div class="survey-question-label">Spart dir KLEO Zeit?</div>
+        <div class="survey-options" data-survey="2" data-key="saves_time">
+          <button class="survey-opt-btn" onclick="selectSurveyOpt(this)">Ja, deutlich</button>
+          <button class="survey-opt-btn" onclick="selectSurveyOpt(this)">Ein bisschen</button>
+          <button class="survey-opt-btn" onclick="selectSurveyOpt(this)">Nein, nicht wirklich</button>
+        </div>
+      </div>
+
+      <div class="survey-question">
+        <div class="survey-question-label">Würdest du KLEO einem Kollegen empfehlen?</div>
+        <div class="survey-options" data-survey="2" data-key="recommend">
+          <button class="survey-opt-btn" onclick="selectSurveyOpt(this)">Ja</button>
+          <button class="survey-opt-btn" onclick="selectSurveyOpt(this)">Vielleicht</button>
+          <button class="survey-opt-btn" onclick="selectSurveyOpt(this)">Nein</button>
+        </div>
+      </div>
+
+      <div class="survey-question">
+        <div class="survey-question-label">Was müsste besser werden?</div>
+        <div class="survey-text-row">
+          <textarea class="survey-textarea" data-survey="2" data-key="improve" placeholder="Hier rein damit..." rows="2"></textarea>
+          <button class="survey-skip" onclick="skipSurveyField(this)">Überspringen</button>
+        </div>
+      </div>
+
+      <div class="survey-submit-row">
+        <button class="survey-submit-btn" id="survey2Submit" disabled onclick="submitSurvey(2)">Absenden</button>
+      </div>
+    </div>
+    <div class="survey-thanks" id="survey2Thanks">
+      <div class="survey-thanks-icon">&#10003;</div>
+      <div class="survey-thanks-text">Vielen Dank! Dein Zugang bleibt noch 3 Werktage aktiv.</div>
+    </div>
+  </div>
+</div>
+
 <!-- ========== BETA EXPIRED OVERLAY ========== -->
 <div id="betaExpiredOverlay">
   <div class="beta-expired-box">
@@ -1873,13 +2109,125 @@ function applyBetaPhase() {
     expiredOverlay.classList.add('visible');
   }
 
-  // survey1 / survey2: Overlays werden in Session 4 gebaut.
-  // Hier nur loggen, damit wir's sehen.
-  if (phase === 'survey1' || phase === 'survey2') {
-    console.log(`[beta] Phase: ${phase} – Fragebogen-Overlay wird in Session 4 implementiert.`);
-  }
+  if (phase === 'survey1') showSurveyIfNeeded(1);
+  if (phase === 'survey2') showSurveyIfNeeded(2);
 
   return phase;
+}
+
+// ========== SURVEY SYSTEM ==========
+async function showSurveyIfNeeded(num) {
+  const tenantId = getTenantId();
+  if (!tenantId) return;
+
+  // Check sessionStorage first (fast path)
+  if (sessionStorage.getItem(`kleo_survey${num}_done`) === '1') return;
+
+  // Check Supabase if already submitted
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/survey_responses?tenant_id=eq.${tenantId}&survey_number=eq.${num}&select=id&limit=1`,
+      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+    );
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0) {
+      sessionStorage.setItem(`kleo_survey${num}_done`, '1');
+      return;
+    }
+  } catch (e) {
+    console.error('[survey] Check failed:', e.message);
+  }
+
+  // Show overlay
+  document.getElementById(`survey${num}Overlay`).classList.add('visible');
+}
+
+function selectSurveyOpt(btn) {
+  // Deselect siblings
+  btn.parentElement.querySelectorAll('.survey-opt-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+
+  // Check if submit should be enabled
+  const surveyNum = btn.parentElement.dataset.survey;
+  validateSurvey(parseInt(surveyNum));
+}
+
+function validateSurvey(num) {
+  const allOptionGroups = document.querySelectorAll(`.survey-options[data-survey="${num}"]`);
+  let allRequired = true;
+  allOptionGroups.forEach(group => {
+    if (!group.querySelector('.survey-opt-btn.selected')) allRequired = false;
+  });
+  document.getElementById(`survey${num}Submit`).disabled = !allRequired;
+}
+
+function showConditional(id) {
+  document.getElementById(id).classList.add('visible');
+}
+
+function hideConditional(id) {
+  const el = document.getElementById(id);
+  el.classList.remove('visible');
+  // Clear textarea inside
+  const ta = el.querySelector('textarea');
+  if (ta) ta.value = '';
+}
+
+function skipSurveyField(btn) {
+  const textarea = btn.parentElement.querySelector('textarea');
+  if (textarea) textarea.value = '';
+  textarea?.setAttribute('data-skipped', '1');
+}
+
+async function submitSurvey(num) {
+  const submitBtn = document.getElementById(`survey${num}Submit`);
+  submitBtn.disabled = true;
+  submitBtn.textContent = '...';
+
+  // Collect responses
+  const responses = {};
+  document.querySelectorAll(`.survey-options[data-survey="${num}"]`).forEach(group => {
+    const key = group.dataset.key;
+    const selected = group.querySelector('.survey-opt-btn.selected');
+    responses[key] = selected ? selected.textContent : null;
+  });
+  document.querySelectorAll(`.survey-textarea[data-survey="${num}"]`).forEach(ta => {
+    const key = ta.dataset.key;
+    const val = ta.value.trim();
+    if (val) responses[key] = val;
+  });
+
+  // Save to Supabase
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/survey_responses`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        tenant_id: getTenantId(),
+        survey_number: num,
+        responses: responses
+      })
+    });
+  } catch (e) {
+    console.error('[survey] Save failed:', e.message);
+  }
+
+  // Mark as done
+  sessionStorage.setItem(`kleo_survey${num}_done`, '1');
+
+  // Show thanks
+  document.getElementById(`survey${num}Form`).classList.add('hidden');
+  document.getElementById(`survey${num}Thanks`).classList.add('visible');
+
+  // Auto-close after 2 seconds
+  setTimeout(() => {
+    document.getElementById(`survey${num}Overlay`).classList.remove('visible');
+  }, 2000);
 }
 
 (async () => {
@@ -1957,6 +2305,8 @@ function logoutTenant() {
   sessionStorage.removeItem('kleo_tenant_id');
   sessionStorage.removeItem('kleo_tenant_name');
   sessionStorage.removeItem('kleo_beta_start');
+  sessionStorage.removeItem('kleo_survey1_done');
+  sessionStorage.removeItem('kleo_survey2_done');
   window.location.reload();
 }
 
