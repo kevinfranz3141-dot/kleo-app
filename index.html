@@ -2072,24 +2072,27 @@ function getBetaPhase() {
   if (!startStr) return 'active'; // Kein Beta-Datum = Pilotkunde, kein Timer
   const start = new Date(startStr);
   const now = new Date();
-  const daysSinceStart = Math.floor((now - start) / (1000 * 60 * 60 * 24)) + 1; // Tag 1 = Starttag
-  if (daysSinceStart <= 6) return 'active';
-  if (daysSinceStart === 7) return 'survey1';
-  if (daysSinceStart <= 13) return 'testing';
-  if (daysSinceStart === 14) return 'survey2';
-  if (daysSinceStart <= 17) return 'grace';
-  return 'expired';
+  const daysSinceStart = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+  if (daysSinceStart < 7) return 'active';       // Tag 0-6
+  if (daysSinceStart < 8) return 'survey1';       // Tag 7
+  if (daysSinceStart < 14) return 'testing';      // Tag 8-13
+  if (daysSinceStart < 15) return 'survey2';      // Tag 14
+  if (daysSinceStart < 18) return 'grace';        // Tag 15-17
+  return 'expired';                                // Tag 18+
 }
 
 function getBetaEndDate() {
   const startStr = sessionStorage.getItem('kleo_beta_start');
   if (!startStr) return null;
   const end = new Date(startStr);
-  end.setDate(end.getDate() + 17); // Tag 18 = expired, also Tag 17 = letzter Tag
+  end.setDate(end.getDate() + 17); // Letzter Grace-Tag (Tag 17, ab Tag 18 = expired)
   return end;
 }
 
 function applyBetaPhase() {
+  const _startStr = sessionStorage.getItem('kleo_beta_start');
+  const _days = _startStr ? Math.floor((new Date() - new Date(_startStr)) / (1000*60*60*24)) : 'NULL';
+  alert('Phase: ' + getBetaPhase() + ' | Days: ' + _days + ' | beta_start: ' + (_startStr || 'NOT SET'));
   const phase = getBetaPhase();
   const banner = document.getElementById('betaBanner');
   const expiredOverlay = document.getElementById('betaExpiredOverlay');
