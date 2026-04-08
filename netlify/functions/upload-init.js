@@ -20,8 +20,14 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Nur POST' }) };
 
   try {
-    const { title, content } = JSON.parse(event.body);
+    const { title, content, tenant_id } = JSON.parse(event.body);
     if (!title) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Titel fehlt' }) };
+
+    const docData = {
+      title: title,
+      content: (content || '').substring(0, 5000),
+    };
+    if (tenant_id) docData.tenant_id = tenant_id;
 
     const res = await fetch(`${SUPABASE_URL}/rest/v1/documents`, {
       method: 'POST',
@@ -31,10 +37,7 @@ exports.handler = async (event) => {
         'Content-Type': 'application/json',
         'Prefer': 'return=representation',
       },
-      body: JSON.stringify({
-        title: title,
-        content: (content || '').substring(0, 5000),
-      }),
+      body: JSON.stringify(docData),
     });
 
     if (!res.ok) {

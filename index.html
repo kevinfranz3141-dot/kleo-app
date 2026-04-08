@@ -1497,7 +1497,9 @@ body {
   <div class="auth-box">
     <div class="auth-logo">K</div>
     <div class="auth-title">KLEO</div>
-    <div class="auth-sub">Bitte Passwort eingeben</div>
+    <div class="auth-sub">Bitte anmelden</div>
+    <input id="authSlug" class="auth-input" type="text" placeholder="Firmen-Kürzel (z.B. mr-energie)"
+           onkeydown="if(event.key==='Enter')document.getElementById('authInput').focus()" style="margin-bottom:8px">
     <input id="authInput" class="auth-input" type="password" placeholder="Passwort" autocomplete="current-password"
            onkeydown="if(event.key==='Enter')submitAuth()">
     <div class="auth-error" id="authError"></div>
@@ -1533,10 +1535,11 @@ body {
       </button>
       <div class="sidebar-user">
         <div class="sidebar-user-avatar" id="sidebarUserAvatar">ME</div>
-        <div>
+        <div style="flex:1;min-width:0">
           <div class="sidebar-user-name" id="sidebarUserName">Mein Energiebüro</div>
           <div class="sidebar-user-plan">KLEO Pro</div>
         </div>
+        <button onclick="logoutTenant()" title="Abmelden" style="background:none;border:none;cursor:pointer;padding:4px 6px;color:var(--text-tertiary);font-size:14px;line-height:1;border-radius:4px;" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-tertiary)'">⏻</button>
       </div>
     </div>
   </aside>
@@ -1701,48 +1704,13 @@ body {
 // pdf.js Worker konfigurieren
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-// ========== AUTH ==========
-// Passwort wird aus URL-Parameter ?pw= gelesen, Fallback: 'kleo2026'.
-// Kunden-URL: /?kunde=MusterGmbH&pw=geheimesPasswort
-const PASSWORD_REF = new URLSearchParams(window.location.search).get('pw') || 'kleo2026';
+// ========== SUPABASE CONFIG ==========
+const SUPABASE_URL = 'https://izdlrotfclgpockskmma.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml6ZGxyb3RmY2xncG9ja3NrbW1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NTQ5ODYsImV4cCI6MjA4ODIzMDk4Nn0.vJOWPbr1riKSmuquXQOeGdoXGR_c43ReANmTJvuC_g8';
 
-async function sha256hex(str) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-(async () => {
-  if (sessionStorage.getItem('kleo_auth') === '1') {
-    document.getElementById('authOverlay').classList.add('hidden');
-  } else {
-    setTimeout(() => document.getElementById('authInput')?.focus(), 50);
-  }
-})();
-
-async function submitAuth() {
-  const input = document.getElementById('authInput').value;
-  const [inputHash, expectedHash] = await Promise.all([
-    sha256hex(input),
-    sha256hex(PASSWORD_REF)
-  ]);
-  if (inputHash === expectedHash) {
-    sessionStorage.setItem('kleo_auth', '1');
-    document.getElementById('authOverlay').classList.add('hidden');
-  } else {
-    const err = document.getElementById('authError');
-    err.textContent = 'Falsches Passwort.';
-    document.getElementById('authInput').value = '';
-    document.getElementById('authInput').focus();
-    setTimeout(() => { err.textContent = ''; }, 2500);
-  }
-}
-
-// ========== KUNDENNAME (URL-Parameter ?kunde=) ==========
-const KUNDENNAME = (() => {
-  const raw = new URLSearchParams(window.location.search).get('kunde');
-  if (raw && raw.trim()) return raw.trim();
-  return 'Mein Energiebüro';
-})();
+// ========== AUTH (Multi-Tenant) ==========
+function getTenantId() { return sessionStorage.getItem('kleo_tenant_id') || ''; }
+function getTenantName() { return sessionStorage.getItem('kleo_tenant_name') || 'Mein Energiebüro'; }
 
 function kundenInitials(name) {
   const words = name.split(/[\s\-_]+/).filter(w => w.length > 0);
@@ -1750,15 +1718,86 @@ function kundenInitials(name) {
   return name.substring(0, 2).toUpperCase();
 }
 
-document.getElementById('sidebarUserName').textContent = KUNDENNAME;
-document.getElementById('sidebarUserAvatar').textContent = kundenInitials(KUNDENNAME);
+function updateTenantUI() {
+  const name = getTenantName();
+  document.getElementById('sidebarUserName').textContent = name;
+  document.getElementById('sidebarUserAvatar').textContent = kundenInitials(name);
+}
+
+(async () => {
+  if (sessionStorage.getItem('kleo_auth') === '1' && getTenantId()) {
+    document.getElementById('authOverlay').classList.add('hidden');
+    updateTenantUI();
+  } else {
+    // Prüfe ob Slug in URL steckt (Kompatibilität)
+    const urlSlug = new URLSearchParams(window.location.search).get('kunde');
+    if (urlSlug) document.getElementById('authSlug').value = urlSlug;
+    setTimeout(() => {
+      const slugField = document.getElementById('authSlug');
+      if (slugField.value) document.getElementById('authInput')?.focus();
+      else slugField?.focus();
+    }, 50);
+  }
+})();
+
+async function submitAuth() {
+  const slug = document.getElementById('authSlug').value.trim().toLowerCase();
+  const password = document.getElementById('authInput').value;
+  const errEl = document.getElementById('authError');
+
+  if (!slug || !password) {
+    errEl.textContent = 'Bitte Firmen-Kürzel und Passwort eingeben.';
+    setTimeout(() => { errEl.textContent = ''; }, 2500);
+    return;
+  }
+
+  try {
+    // Tenant in Supabase suchen
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/tenants?slug=eq.${encodeURIComponent(slug)}&select=id,name,password`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    });
+    const tenants = await res.json();
+
+    if (!Array.isArray(tenants) || tenants.length === 0) {
+      errEl.textContent = 'Firma nicht gefunden.';
+      document.getElementById('authSlug').focus();
+      setTimeout(() => { errEl.textContent = ''; }, 2500);
+      return;
+    }
+
+    const tenant = tenants[0];
+    if (password !== tenant.password) {
+      errEl.textContent = 'Falsches Passwort.';
+      document.getElementById('authInput').value = '';
+      document.getElementById('authInput').focus();
+      setTimeout(() => { errEl.textContent = ''; }, 2500);
+      return;
+    }
+
+    // Login erfolgreich
+    sessionStorage.setItem('kleo_auth', '1');
+    sessionStorage.setItem('kleo_tenant_id', tenant.id);
+    sessionStorage.setItem('kleo_tenant_name', tenant.name);
+    document.getElementById('authOverlay').classList.add('hidden');
+    updateTenantUI();
+    loadDocuments();
+  } catch (err) {
+    errEl.textContent = 'Verbindungsfehler. Bitte erneut versuchen.';
+    setTimeout(() => { errEl.textContent = ''; }, 3000);
+  }
+}
+
+function logoutTenant() {
+  sessionStorage.removeItem('kleo_auth');
+  sessionStorage.removeItem('kleo_tenant_id');
+  sessionStorage.removeItem('kleo_tenant_name');
+  window.location.reload();
+}
 
 // ========== CONFIG ==========
 const WEBHOOK_URL = '/.netlify/functions/chat';
 const UPLOAD_INIT_URL = '/.netlify/functions/upload-init';
 const UPLOAD_CHUNKS_URL = '/.netlify/functions/upload-chunks';
-const SUPABASE_URL = 'https://izdlrotfclgpockskmma.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml6ZGxyb3RmY2xncG9ja3NrbW1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NTQ5ODYsImV4cCI6MjA4ODIzMDk4Nn0.vJOWPbr1riKSmuquXQOeGdoXGR_c43ReANmTJvuC_g8';
 
 const CHUNK_SIZE = 1000;
 const CHUNK_OVERLAP = 200;
@@ -1882,7 +1921,7 @@ async function sendMessage() {
     const res = await fetch(WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: q, session_id: getSession(), conversation_history: history })
+      body: JSON.stringify({ question: q, session_id: getSession(), conversation_history: history, tenant_id: getTenantId() })
     });
     const data = await res.json();
 
@@ -2525,7 +2564,8 @@ async function loadDocuments() {
   const docsList = document.getElementById('docsList');
   
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/documents?select=id,title,created_at&order=created_at.desc`, {
+    const tenantFilter = getTenantId() ? `&tenant_id=eq.${getTenantId()}` : '';
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/documents?select=id,title,created_at&order=created_at.desc${tenantFilter}`, {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
     });
 
@@ -2533,7 +2573,7 @@ async function loadDocuments() {
     const docs = await res.json();
 
     // Chunk-Counts laden
-    const chunkRes = await fetch(`${SUPABASE_URL}/rest/v1/document_chunks?select=document_id`, {
+    const chunkRes = await fetch(`${SUPABASE_URL}/rest/v1/document_chunks?select=document_id${tenantFilter}`, {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
     });
     const chunks = await chunkRes.json();
@@ -2971,7 +3011,7 @@ async function uploadSinglePDF(file, fileNum, totalFiles, customTitle) {
     const initRes = await fetch(UPLOAD_INIT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: title, content: pdfText.substring(0, 5000) }),
+      body: JSON.stringify({ title: title, content: pdfText.substring(0, 5000), tenant_id: getTenantId() }),
     });
 
     const initData = await initRes.json();
@@ -2997,6 +3037,7 @@ async function uploadSinglePDF(file, fileNum, totalFiles, customTitle) {
         body: JSON.stringify({
           document_id: documentId,
           chunks: batch,
+          tenant_id: getTenantId(),
           ...(isLastBatch ? { generate_summary: true, doc_text: pdfText.substring(0, 3000) } : {}),
         }),
       });

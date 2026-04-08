@@ -85,7 +85,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { question, conversation_history } = JSON.parse(event.body);
+    const { question, conversation_history, tenant_id } = JSON.parse(event.body);
     if (!question) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: "No question provided" }) };
     }
@@ -116,7 +116,8 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         query_embedding: embedding,
         match_count: 20,
-        match_threshold: 0.2
+        match_threshold: 0.2,
+        filter_tenant_id: tenant_id || null
       })
     });
     const candidates = await searchResponse.json();
@@ -168,7 +169,7 @@ exports.handler = async (event) => {
       const sr = await fetch(SUPABASE_URL + "/rest/v1/rpc/match_document_chunks", {
         method: "POST",
         headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY, "Content-Type": "application/json" },
-        body: JSON.stringify({ query_embedding: ed.data[0].embedding, match_count: 5, match_threshold: 0.2 })
+        body: JSON.stringify({ query_embedding: ed.data[0].embedding, match_count: 5, match_threshold: 0.2, filter_tenant_id: tenant_id || null })
       });
       const cands = await sr.json();
       if (!Array.isArray(cands) || cands.length === 0) return;

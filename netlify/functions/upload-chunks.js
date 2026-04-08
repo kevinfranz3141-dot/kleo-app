@@ -27,7 +27,7 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Nur POST' }) };
 
   try {
-    const { document_id, chunks, generate_summary, doc_text } = JSON.parse(event.body);
+    const { document_id, chunks, generate_summary, doc_text, tenant_id } = JSON.parse(event.body);
 
     if (!document_id || !chunks || !chunks.length) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'document_id und chunks erforderlich' }) };
@@ -59,13 +59,17 @@ exports.handler = async (event) => {
     const embeddings = embData.data.map(d => d.embedding);
 
     // 2. Chunks mit Embeddings in Supabase speichern
-    const rows = batch.map((chunk, i) => ({
-      document_id: document_id,
-      content: chunk.content,
-      embedding: JSON.stringify(embeddings[i]),
-      page_number: chunk.page_number || null,
-      chunk_index: chunk.chunk_index || i,
-    }));
+    const rows = batch.map((chunk, i) => {
+      const row = {
+        document_id: document_id,
+        content: chunk.content,
+        embedding: JSON.stringify(embeddings[i]),
+        page_number: chunk.page_number || null,
+        chunk_index: chunk.chunk_index || i,
+      };
+      if (tenant_id) row.tenant_id = tenant_id;
+      return row;
+    });
 
     const storeRes = await fetch(`${SUPABASE_URL}/rest/v1/document_chunks`, {
       method: 'POST',
@@ -121,6 +125,15 @@ exports.handler = async (event) => {
               const embSumData = await embSumRes.json();
               const summaryEmbedding = embSumData.data[0].embedding;
 
+              const summaryRow = {
+                document_id,
+                content: '[ZUSAMMENFASSUNG] ' + summaryText,
+                embedding: JSON.stringify(summaryEmbedding),
+                page_number: 0,
+                chunk_index: 0,
+              };
+              if (tenant_id) summaryRow.tenant_id = tenant_id;
+
               await fetch(`${SUPABASE_URL}/rest/v1/document_chunks`, {
                 method: 'POST',
                 headers: {
@@ -129,13 +142,7 @@ exports.handler = async (event) => {
                   'Content-Type': 'application/json',
                   'Prefer': 'return=minimal',
                 },
-                body: JSON.stringify([{
-                  document_id,
-                  content: '[ZUSAMMENFASSUNG] ' + summaryText,
-                  embedding: JSON.stringify(summaryEmbedding),
-                  page_number: 0,
-                  chunk_index: 0,
-                }]),
+                body: JSON.stringify([summaryRow]),
               });
               summary_saved = true;
             }
