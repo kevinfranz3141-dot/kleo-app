@@ -287,6 +287,30 @@ exports.handler = async (event) => {
       excerpts: s.excerpts
     })).slice(0, 4);
 
+    // Step 9: Log chat to Supabase (fire-and-forget, never blocks response)
+    if (tenant_id) {
+      try {
+        const logSources = sources.map(s => ({ title: s.title, pages: s.pages }));
+        await fetch(SUPABASE_URL + "/rest/v1/chat_logs", {
+          method: "POST",
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": "Bearer " + SUPABASE_KEY,
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal"
+          },
+          body: JSON.stringify({
+            tenant_id: tenant_id,
+            user_message: question,
+            assistant_response: answer,
+            sources_used: logSources
+          })
+        });
+      } catch (logErr) {
+        console.error("[chat-log] Failed to log chat:", logErr.message);
+      }
+    }
+
     return {
       statusCode: 200,
       headers,
