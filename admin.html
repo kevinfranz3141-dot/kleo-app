@@ -393,11 +393,13 @@ body {
   color: var(--text-secondary);
   line-height: 1.5;
   white-space: pre-wrap;
-  max-height: 120px;
-  overflow: hidden;
-  position: relative;
 }
-.chat-entry-a.expanded { max-height: none; }
+.chat-entry-a.collapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .chat-entry-toggle {
   font-size: 12px;
   color: var(--leaf);
@@ -546,6 +548,74 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
 
+/* ========== QUALITY ASSESSMENT ========== */
+.quality-block {
+  background: var(--bg-card);
+  border: 1px solid var(--border-secondary);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+.quality-block h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+}
+.quality-ampel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.ampel-dot {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ampel-dot.green { background: var(--leaf); box-shadow: 0 0 6px rgba(74,140,92,0.5); }
+.ampel-dot.yellow { background: var(--amber); box-shadow: 0 0 6px rgba(200,169,110,0.5); }
+.ampel-dot.red { background: var(--danger); box-shadow: 0 0 6px rgba(232,93,74,0.5); }
+.ampel-label {
+  font-size: 14px;
+  font-weight: 500;
+}
+.quality-stat {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 3px 0;
+  line-height: 1.5;
+}
+.quality-stat strong { color: var(--text-primary); font-weight: 500; }
+.quality-problems {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-secondary);
+}
+.quality-problems .qp-item {
+  font-size: 12px;
+  color: var(--danger);
+  padding: 2px 0;
+}
+.quality-satisfaction {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-secondary);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.satisfaction-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: 6px;
+}
+.satisfaction-badge.satisfied { background: rgba(74,140,92,0.15); color: var(--leaf); }
+.satisfaction-badge.neutral { background: rgba(200,169,110,0.15); color: var(--amber); }
+.satisfaction-badge.unsatisfied { background: rgba(232,93,74,0.15); color: var(--danger); }
+
 /* ========== TOAST ========== */
 .toast {
   position: fixed;
@@ -647,6 +717,8 @@ body {
     </div>
 
     <div id="detailSurveys"></div>
+
+    <div id="detailQuality"></div>
 
     <h3 class="detail-section-title">Letzte Chat-Fragen</h3>
     <div class="chat-log" id="detailChatLog">
@@ -792,7 +864,7 @@ function renderGrid() {
       <div class="tc-row"><span class="tc-label">Fragen gesamt</span><span class="tc-value">${total}</span></div>
       <div class="tc-row"><span class="tc-label">Letzte 7 Tage</span><span class="tc-value">${week}</span></div>
       <div class="tc-row"><span class="tc-label">Letzte Aktivit\u00e4t</span><span class="tc-value">${last}</span></div>
-      <div class="tc-surveys">Survey 1: ${s1} | Survey 2: ${s2}</div>
+      <div class="tc-surveys">Umfrage 1: ${s1} | Umfrage 2: ${s2}</div>
     </div>`;
   }).join('');
 }
@@ -830,33 +902,44 @@ async function openDetail(tenantId) {
     <button class="btn-action danger" onclick="lockAccess('${t.id}')">Zugang sperren</button>
   `;
 
-  // Load surveys
+  // Load surveys + chat logs in parallel
   const surveyDiv = document.getElementById('detailSurveys');
   surveyDiv.innerHTML = '<span class="loading-spinner"></span>';
-  const surveyData = await sbGet(`survey_responses?tenant_id=eq.${tenantId}&select=survey_number,responses&order=survey_number.asc`);
+  const chatLog = document.getElementById('detailChatLog');
+  chatLog.innerHTML = '<div style="color:var(--text-tertiary)"><span class="loading-spinner"></span> Lade Chat-Verlauf...</div>';
+  const qualityDiv = document.getElementById('detailQuality');
+  qualityDiv.innerHTML = '';
+
+  const [surveyData, logs] = await Promise.all([
+    sbGet(`survey_responses?tenant_id=eq.${tenantId}&select=survey_number,responses&order=survey_number.asc`),
+    sbGet(`chat_logs?tenant_id=eq.${tenantId}&select=id,user_message,assistant_response,created_at&order=created_at.desc&limit=20`)
+  ]);
+
+  // Render surveys with German labels
   if (surveyData.length) {
     surveyDiv.innerHTML = surveyData.map(s => {
       const resp = s.responses || {};
-      const rows = Object.entries(resp).map(([k, v]) => `<div class="survey-answer-row"><span class="sa-q">${esc(k)}:</span><span class="sa-a">${esc(String(v))}</span></div>`).join('');
-      return `<div class="survey-answers"><h4>Survey ${s.survey_number}</h4>${rows}</div>`;
+      const rows = Object.entries(resp).map(([k, v]) => `<div class="survey-answer-row"><span class="sa-q">${esc(translateSurveyKey(k))}:</span><span class="sa-a">${esc(String(v))}</span></div>`).join('');
+      const title = s.survey_number === 1 ? 'Erste Umfrage' : 'Zweite Umfrage';
+      return `<div class="survey-answers"><h4>${title}</h4>${rows}</div>`;
     }).join('');
   } else {
-    surveyDiv.innerHTML = '<p style="font-size:13px;color:var(--text-tertiary);margin-bottom:16px">Keine Surveys beantwortet</p>';
+    surveyDiv.innerHTML = '<p style="font-size:13px;color:var(--text-tertiary);margin-bottom:16px">Keine Umfragen beantwortet</p>';
   }
 
-  // Load chat logs
-  const chatLog = document.getElementById('detailChatLog');
-  chatLog.innerHTML = '<div style="color:var(--text-tertiary)"><span class="loading-spinner"></span> Lade Chat-Verlauf...</div>';
-  const logs = await sbGet(`chat_logs?tenant_id=eq.${tenantId}&select=id,user_message,assistant_response,created_at&order=created_at.desc&limit=20`);
+  // Render quality assessment
+  qualityDiv.innerHTML = buildQualityBlock(logs, surveyData);
+
+  // Render chat logs with truncated answers
   if (logs.length) {
     chatLog.innerHTML = logs.map(l => {
-      const flagged = /keine informationen|liegen mir keine|keine passenden|nicht in den bereitgestellten/i.test(l.assistant_response || '');
-      const answer = esc(l.assistant_response || '').substring(0, 600);
+      const flagged = isProblematicAnswer(l.assistant_response);
+      const fullText = l.assistant_response || '';
       return `<div class="chat-entry${flagged ? ' flagged' : ''}">
         <div class="chat-entry-time">${formatDate(l.created_at)}</div>
         <div class="chat-entry-q">${esc(l.user_message)}</div>
-        <div class="chat-entry-a" id="ca-${l.id}">${answer}${(l.assistant_response || '').length > 600 ? '...' : ''}</div>
-        ${(l.assistant_response || '').length > 600 ? `<button class="chat-entry-toggle" onclick="toggleAnswer(this,'${l.id}','${encodeURIComponent(l.assistant_response)}')">Mehr anzeigen</button>` : ''}
+        <div class="chat-entry-a collapsed" id="ca-${l.id}">${esc(fullText)}</div>
+        <button class="chat-entry-toggle" onclick="toggleAnswer(this,'${l.id}')">Mehr anzeigen</button>
         ${flagged ? '<span class="flag-label">Potenzielle Fehlerquelle</span>' : ''}
       </div>`;
     }).join('');
@@ -867,17 +950,147 @@ async function openDetail(tenantId) {
   document.getElementById('detailOverlay').classList.add('visible');
 }
 
-function toggleAnswer(btn, id, encodedFull) {
+function toggleAnswer(btn, id) {
   const el = document.getElementById('ca-' + id);
-  if (el.classList.contains('expanded')) {
-    el.classList.remove('expanded');
-    el.textContent = esc(decodeURIComponent(encodedFull)).substring(0, 600) + '...';
-    btn.textContent = 'Mehr anzeigen';
-  } else {
-    el.classList.add('expanded');
-    el.textContent = decodeURIComponent(encodedFull);
-    btn.textContent = 'Weniger anzeigen';
+  const collapsed = el.classList.contains('collapsed');
+  el.classList.toggle('collapsed');
+  btn.textContent = collapsed ? 'Weniger anzeigen' : 'Mehr anzeigen';
+}
+
+// ===== SURVEY KEY TRANSLATION =====
+const SURVEY_KEY_MAP = {
+  'helpful': 'Hilfreich',
+  'wrong_answer': 'Falsche Antwort',
+  'wrong_detail': 'Details zum Fehler',
+  'wrong_details': 'Details zum Fehler',
+  'missing_topic': 'Fehlendes Thema',
+  'saves_time': 'Zeitsparend',
+  'recommend': 'Empfehlung',
+  'improve': 'Verbesserungsvorschlag',
+  'improvement': 'Verbesserungsvorschlag'
+};
+
+function translateSurveyKey(key) {
+  return SURVEY_KEY_MAP[key] || key;
+}
+
+// ===== QUALITY ASSESSMENT =====
+function isProblematicAnswer(text) {
+  if (!text) return false;
+  return /keine informationen|liegen mir keine|keine passenden|nicht in den bereitgestellten/i.test(text);
+}
+
+function buildQualityBlock(logs, surveyData) {
+  if (!logs.length) return '';
+
+  const total = logs.length;
+  const problematic = logs.filter(l => isProblematicAnswer(l.assistant_response));
+  const problemCount = problematic.length;
+  const successCount = total - problemCount;
+  const ratio = problemCount / total;
+
+  // Ampel
+  let ampelClass, ampelLabel;
+  if (ratio < 0.1) { ampelClass = 'green'; ampelLabel = 'Gut'; }
+  else if (ratio <= 0.3) { ampelClass = 'yellow'; ampelLabel = 'Verbesserungsbedarf'; }
+  else { ampelClass = 'red'; ampelLabel = 'Kritisch'; }
+
+  // Top 3 themes from questions (simple keyword extraction)
+  const themes = extractTopThemes(logs.map(l => l.user_message || ''));
+
+  let html = `<div class="quality-block">
+    <h4>Qualit\u00e4tseinsch\u00e4tzung</h4>
+    <div class="quality-ampel">
+      <span class="ampel-dot ${ampelClass}"></span>
+      <span class="ampel-label">${ampelLabel}</span>
+    </div>
+    <div class="quality-stat"><strong>${successCount} von ${total}</strong> Fragen erfolgreich beantwortet</div>`;
+
+  if (themes.length) {
+    html += `<div class="quality-stat">H\u00e4ufigste Themen: <strong>${themes.map(t => esc(t)).join(', ')}</strong></div>`;
   }
+
+  // Problem questions
+  if (problemCount > 0) {
+    html += `<div class="quality-problems">`;
+    html += `<div class="quality-stat" style="margin-bottom:4px"><strong>${problemCount} Problemfrage${problemCount > 1 ? 'n' : ''}:</strong></div>`;
+    problematic.forEach(l => {
+      html += `<div class="qp-item">\u2022 ${esc((l.user_message || '').substring(0, 100))}${(l.user_message || '').length > 100 ? '...' : ''}</div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Survey satisfaction
+  const satisfaction = calcSatisfaction(surveyData);
+  if (satisfaction) {
+    html += `<div class="quality-satisfaction">Nutzerzufriedenheit: <span class="satisfaction-badge ${satisfaction.cls}">${satisfaction.label}</span></div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+function extractTopThemes(questions) {
+  const stopwords = new Set(['wie','was','ist','der','die','das','ein','eine','und','oder','f\u00fcr','von','zu','den','dem','des','im','in','auf','mit','an','bei','nach','aus','es','ich','wir','er','sie','nicht','kann','sind','wird','werden','hat','haben','auch','als','nur','noch','wenn','welche','welcher','welches','gibt','muss','m\u00fcssen','k\u00f6nnen','soll','sollte','wurde','war','habe','einen','einem','einer','diese','dieser','diesem','dieses','meine','mein','meinen','zur','zum','am','um','\u00fcber','dass','ob','schon','sehr','viel','mehr','aber','denn','doch','mal','so','da','hier','dort','dann','wann','warum','wo','wer','wen','wem','welchem']);
+  const counts = {};
+  for (const q of questions) {
+    const words = q.toLowerCase().replace(/[^a-z\u00e4\u00f6\u00fc\u00df\s-]/g, '').split(/\s+/);
+    const seen = new Set();
+    for (const w of words) {
+      if (w.length < 3 || stopwords.has(w) || seen.has(w)) continue;
+      seen.add(w);
+      counts[w] = (counts[w] || 0) + 1;
+    }
+  }
+  // Also look for bigrams
+  for (const q of questions) {
+    const words = q.toLowerCase().replace(/[^a-z\u00e4\u00f6\u00fc\u00df\s-]/g, '').split(/\s+/).filter(w => w.length >= 3 && !stopwords.has(w));
+    for (let i = 0; i < words.length - 1; i++) {
+      const bi = words[i] + ' ' + words[i+1];
+      counts[bi] = (counts[bi] || 0) + 1.5; // boost bigrams
+    }
+  }
+  return Object.entries(counts)
+    .filter(([,c]) => c >= 2)
+    .sort((a,b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([w]) => w.charAt(0).toUpperCase() + w.slice(1));
+}
+
+function calcSatisfaction(surveyData) {
+  if (!surveyData.length) return null;
+  let score = 0;
+  let factors = 0;
+  for (const s of surveyData) {
+    const r = s.responses || {};
+    if (r.helpful) {
+      factors++;
+      if (r.helpful === 'Sehr hilfreich') score += 2;
+      else if (r.helpful === 'Ganz okay') score += 1;
+      else score += 0;
+    }
+    if (r.recommend) {
+      factors++;
+      if (r.recommend === 'Ja') score += 2;
+      else if (r.recommend === 'Vielleicht') score += 1;
+      else score += 0;
+    }
+    if (r.saves_time) {
+      factors++;
+      if (r.saves_time === 'Ja, deutlich') score += 2;
+      else if (r.saves_time === 'Ein bisschen') score += 1;
+      else score += 0;
+    }
+    if (r.wrong_answer) {
+      factors++;
+      score += (r.wrong_answer === 'Nein') ? 2 : 0;
+    }
+  }
+  if (!factors) return null;
+  const avg = score / factors;
+  if (avg >= 1.5) return { label: 'Zufrieden', cls: 'satisfied' };
+  if (avg >= 0.8) return { label: 'Neutral', cls: 'neutral' };
+  return { label: 'Unzufrieden', cls: 'unsatisfied' };
 }
 
 function closeDetail() {
