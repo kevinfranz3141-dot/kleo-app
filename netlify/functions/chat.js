@@ -208,6 +208,23 @@ exports.handler = async (event) => {
       await runFallback("Effizienzbonus Wärmepumpe 5 Prozent natürliches Kältemittel", 3, "Effizienzbonus");
     }
 
+    // Fallback 3: Unterlagen / Antragsprozess — pull in BzA steps + Schritte zum Zuschuss
+    // when the question asks about required documents or the application process
+    const qLower = question.toLowerCase();
+    const isUnterlagenFrage = /unterlage|dokument|was brauch|einreich|antrag\s?stell|antragstellung|was muss ich|was benötig/.test(qLower)
+      && /antrag|kfw|förder|zuschuss|458/.test(qLower);
+    if (isUnterlagenFrage) {
+      const hasProcessSteps = chunks.some(c =>
+        c.content && (
+          (c.content.includes("Schritte") && c.content.includes("Zuschuss")) ||
+          (c.content.includes("BzA") && c.content.includes("Lieferungsvertrag"))
+        )
+      );
+      if (!hasProcessSteps) {
+        await runFallback("BzA Bestätigung zum Antrag Antragstellung KfW Portal Meine KfW Schritte Zuschuss Lieferungsvertrag beantragen", 4, "Unterlagen");
+      }
+    }
+
     // Step 5: Build context from chunks (10 primary + up to 6 fallback)
     const context = chunks.map(c => {
       const title = docTitles[c.document_id] || "Dokument";
